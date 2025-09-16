@@ -19,6 +19,13 @@ dependencyResolutionManagement {
     }
 }
 
+// Enforce Gradle version
+gradle.rootProject {
+    val expectedVersion = "8.13" // Set the locked Gradle version
+    if (gradle.gradleVersion != expectedVersion) {
+        throw GradleException("Expected Gradle version $expectedVersion but found ${gradle.gradleVersion}. Please use the Gradle wrapper (gradlew) instead of your local Gradle installation.")
+    }
+}
+
 rootProject.name = "Local Connect"
 include(":app")
- 
