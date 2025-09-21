@@ -36,18 +36,18 @@ fun AppNavHost() {
         composable("login") {
             LoginScreen(
                 onNavigateToSignup = { navController.navigate("signup") },
-                onLogin = { email, password ->
-                    // TODO: Handle login logic
+                onLoginSuccess = {
+                    // TODO: Navigate to home/main screen after login when merged with main branch
+                    // For now, stay on login or show a message
                 }
             )
         }
         composable("signup") {
             SignupScreen(
                 onNavigateToLogin = { navController.popBackStack() },
-                onSignup = { name, email, password ->
-                    // TODO: Handle signup logic
-                }
+                onSignupSuccess = { navController.popBackStack() }
             )
         }
+        // HomeScreen navigation removed for feature branch cleanliness
     }
 }

@@ -9,14 +9,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
-fun SignupScreen(onNavigateToLogin: () -> Unit, onSignup: (String, String, String) -> Unit) {
+fun SignupScreen(
+    onNavigateToLogin: () -> Unit,
+    onSignupSuccess: () -> Unit,
+    viewModel: AuthViewModel = viewModel()
+) {
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
+    val authResult by viewModel.authResult.collectAsState()
 
     Column(
         modifier = Modifier
@@ -63,23 +68,27 @@ fun SignupScreen(onNavigateToLogin: () -> Unit, onSignup: (String, String, Strin
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             modifier = Modifier.fillMaxWidth()
         )
-        if (error != null) {
-            Text(text = error!!, color = MaterialTheme.colorScheme.error)
+        if (authResult is AuthResult.Error) {
+            Text(text = (authResult as AuthResult.Error).message, color = MaterialTheme.colorScheme.error)
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        if (authResult is AuthResult.Loading) {
+            CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
             Spacer(modifier = Modifier.height(8.dp))
         }
         Spacer(modifier = Modifier.height(24.dp))
         Button(
             onClick = {
-                if (name.isBlank() || email.isBlank() || password.isBlank() || confirmPassword.isBlank()) {
-                    error = "Please fill all fields."
+                if (email.isBlank() || password.isBlank() || name.isBlank() || confirmPassword.isBlank()) {
+                    viewModel.resetState()
                 } else if (password != confirmPassword) {
-                    error = "Passwords do not match."
+                    viewModel.resetState()
                 } else {
-                    error = null
-                    onSignup(name, email, password)
+                    viewModel.signup(email, password)
                 }
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            enabled = authResult !is AuthResult.Loading
         ) {
             Text("Sign Up")
         }
@@ -88,5 +97,10 @@ fun SignupScreen(onNavigateToLogin: () -> Unit, onSignup: (String, String, Strin
             Text("Already have an account? Log in")
         }
     }
+    if (authResult is AuthResult.Success) {
+        LaunchedEffect(Unit) {
+            onSignupSuccess()
+            viewModel.resetState()
+        }
+    }
 }
-
