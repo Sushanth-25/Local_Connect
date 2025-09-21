@@ -44,8 +44,7 @@ fun AppNavHost() {
         }
         composable("signup") {
             SignupScreen(
-                onNavigateToLogin = { navController.popBackStack() },
-                onSignupSuccess = { navController.popBackStack() }
+                onNavigateToLogin = { navController.popBackStack() }
             )
         }
         // HomeScreen navigation removed for feature branch cleanliness

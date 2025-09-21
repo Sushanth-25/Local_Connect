@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Local Connect</string>
+    <!-- Replace with your web client ID from Firebase Console
+     we added our strings.xml to gitignore because it contains sensitive info but below is the template for it.-->
+    <string name="default_web_client_id">YOUR_WEB_CLIENT_ID_HERE</string>
+
+    <!-- Replace with your web API key from Firebase Console -->
+    <string name="web_api_key">YOUR_WEB_API_KEY_HERE</string>
+</resources>

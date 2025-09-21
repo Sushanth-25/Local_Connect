@@ -1,26 +1,36 @@
 {
   "project_info": {
-    "project_number": "1069383767076",
-    "project_id": "local-connect-519e9",
-    "storage_bucket": "local-connect-519e9.firebasestorage.app"
+    "project_number": "751136666119",
+    "project_id": "local-connect-786c1",
+    "storage_bucket": "local-connect-786c1.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1069383767076:android:06198f06494d72b1eeb4b1",
+        "mobilesdk_app_id": "1:751136666119:android:96611d694131d7a85c70a2",
         "android_client_info": {
           "package_name": "com.example.localconnect"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "751136666119-5legfhd6u6ssgjit9udaj0dgohkhq9gc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyAovlW7wCCgd7EmtczkgPvt-4co1a4ZPps"
+          "current_key": "AIzaSyCxpsThshSb3hw9COgCp9ZE_06YMG5u7f8"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "751136666119-5legfhd6u6ssgjit9udaj0dgohkhq9gc.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
