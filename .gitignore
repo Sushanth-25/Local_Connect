@@ -1,89 +1,39 @@
-# Built application files
-*.apk
-*.aar
-*.ap_
-*.aab
+# Ignore sensitive and build files
+/app/google-services.json
+/local.properties
 
-# Files for the ART/Dalvik VM
-*.dex
+# Ignore generated values and secrets
+app/build/generated/res/processDebugGoogleServices/values/values.xml
+app/build/generated/res/**/values/values.xml
 
-# Java class files
-*.class
-
-# Generated files
-bin/
-gen/
-out/
-
-# Gradle files
+# Android/IntelliJ
+*.iml
 .gradle/
 build/
-gradle-app.setting
-!gradle/wrapper/gradle-wrapper.jar
-!gradle/wrapper/gradle-wrapper.properties
-
-# Local configuration file (sdk path, etc)
-local.properties
-.idea/
-
-# Android Studio Navigation editor temp files
-.navigation/
-
-# Android Studio captures folder
-captures/
-
-# IntelliJ
-*.iml
-.idea/workspace.xml
-.idea/tasks.xml
-.idea/gradle.xml
-.idea/assetWizardSettings.xml
-.idea/dictionaries
-.idea/libraries
-.idea/caches
-.idea/modules.xml
-.idea/navEditor.xml
-
-# External native build folder generated in Android Studio
-.externalNativeBuild
+/captures/
+.externalNativeBuild/
 .cxx/
+.idea/
+.DS_Store
 
-# Google Services (e.g. APIs or Firebase)
-app/google-services.json
-app/google-services.json.enc
+# OS generated files
+Thumbs.db
+*.swp
 
-# Sensitive resource files
-app/src/main/res/values/strings.xml
+# Ignore generated files
+app/build/
+app/intermediates/
+app/generated/
+app/.cxx/
 
-# Freeline
-freeline.py
-freeline/
-freeline_project_description.json
-
-# fastlane
-fastlane/report.xml
-fastlane/Preview.html
-fastlane/screenshots
-fastlane/test_output
-fastlane/readme.md
-
-# Version control
-vcs.xml
-
-# lint
-lint/intermediates/
-lint/generated/
-lint/outputs/
-lint/tmp/
-
-# Keystore files
+# Ignore keystore files (if any)
 *.jks
 *.keystore
 
-# MacOS specific
-.DS_Store
+# Ignore crashlytics and fabric files
+fabric.properties
+crashlytics-build.properties
 
-# Windows specific
-Thumbs.db
-ehthumbs.db
-Desktop.ini
+# Ignore sensitive string resources (if needed)
+
+ app/src/main/res/values/Strings.xml
