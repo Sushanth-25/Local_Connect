@@ -1,7 +1,7 @@
 # Ignore sensitive and build files
 /app/google-services.json
 /local.properties
-
+.idea
 # Ignore generated values and secrets
 app/build/generated/res/processDebugGoogleServices/values/values.xml
 app/build/generated/res/**/values/values.xml

@@ -20,33 +20,36 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             LocalConnectTheme {
-                AppNavHost()
+                MainActivityContent()
             }
         }
     }
 }
 
 @Composable
-fun AppNavHost() {
-    val navController = rememberNavController()
+fun MainActivityContent() {
+    val navController: NavHostController = rememberNavController()
+
     NavHost(
         navController = navController,
         startDestination = "login"
     ) {
         composable("login") {
             LoginScreen(
-                onNavigateToSignup = { navController.navigate("signup") },
-                onLoginSuccess = {
-                    // TODO: Navigate to home/main screen after login when merged with main branch
-                    // For now, stay on login or show a message
+                onNavigateToSignup = {
+                    navController.navigate("signup")
+                },
+                onLogin = { email, password ->
+                    // Add your login logic here
                 }
             )
         }
         composable("signup") {
             SignupScreen(
-                onNavigateToLogin = { navController.popBackStack() }
+                onNavigateToLogin = {
+                    navController.navigate("login")
+                }
             )
         }
-        // HomeScreen navigation removed for feature branch cleanliness
     }
 }
