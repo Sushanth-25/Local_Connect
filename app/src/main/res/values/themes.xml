@@ -5,8 +5,10 @@
 
     <style name="Theme.LocalConnect.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/white</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/animated_logo</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/localconnect_logo</item>
         <item name="windowSplashScreenAnimationDuration">7000</item>
         <item name="postSplashScreenTheme">@style/Theme.LocalConnect</item>
     </style>
+
+    <style name="Theme.SplashScreen" parent="android:Theme.Material.Light.NoActionBar" />
 </resources>

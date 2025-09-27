@@ -68,4 +68,6 @@ dependencies {
 
     // Add the necessary Compose Navigation dependency to the build.gradle.kts file
     implementation("androidx.navigation:navigation-compose:2.5.3")
+    //API needed for splash Screen
+    implementation("androidx.core:core-splashscreen:1.0.1")
 }

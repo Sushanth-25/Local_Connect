@@ -1,3 +1,22 @@
-// This file was removed from the feature branch to keep the branch focused on login/signup only.
-// HomeScreen should be implemented in the main branch or a separate feature branch as needed.
 
+package com.example.localconnect
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+
+@Composable
+fun HomeScreen() {
+    Scaffold { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = "Hello World")
+        }
+    }
+}
