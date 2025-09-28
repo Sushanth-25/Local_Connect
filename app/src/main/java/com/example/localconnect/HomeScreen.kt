@@ -16,7 +16,7 @@ fun HomeScreen() {
                 .padding(padding),
             contentAlignment = Alignment.Center
         ) {
-            Text(text = "Hello World")
+            Text(text = "log in was successful/demo home screen")
         }
     }
 }
