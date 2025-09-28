@@ -80,7 +80,10 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
             composable("login") {
                 LoginScreen(
                     onNavigateToSignup = { navController.navigate("signup") },
-                    onLoginSuccess = { navController.navigate("home") },
+                    onLoginSuccess = { navController.navigate("home"){
+                        popUpTo("login") { inclusive = true
+                    }
+                    } },
                 )
             }
             composable("signup") {
