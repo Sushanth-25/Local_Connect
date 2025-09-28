@@ -58,6 +58,9 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+    implementation("androidx.compose.material:material-icons-extended:1.6.1")
+
+
 
     // Import the Firebase BoM
     implementation(platform("com.google.firebase:firebase-bom:34.3.0"))
