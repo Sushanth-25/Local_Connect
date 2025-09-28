@@ -80,7 +80,7 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
             composable("login") {
                 LoginScreen(
                     onNavigateToSignup = { navController.navigate("signup") },
-                    onLogin = { email, password -> /* Add your login logic here */ }
+                    onLoginSuccess = { navController.navigate("home") },
                 )
             }
             composable("signup") {
