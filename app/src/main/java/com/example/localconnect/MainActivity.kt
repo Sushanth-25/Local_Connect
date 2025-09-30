@@ -3,6 +3,7 @@ package com.example.localconnect
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
@@ -14,7 +15,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.localconnect.ui.theme.LocalConnectTheme
 import com.google.firebase.auth.FirebaseAuth
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-
+import androidx.compose.ui.platform.LocalContext
 class MainActivity : ComponentActivity() {
     private var isAuthFinished = false
 
@@ -39,7 +40,7 @@ class MainActivity : ComponentActivity() {
 fun MainActivityContent(onAuthFinished: () -> Unit) {
     val navController: NavHostController = rememberNavController()
     var startDestination by remember { mutableStateOf<String?>(null) }
-
+    val context = LocalContext.current
     // Authenticate during splash
     LaunchedEffect(Unit) {
         val auth = FirebaseAuth.getInstance()
@@ -71,6 +72,20 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
         }
     }
 
+    // Location permission launcher
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        PermissionUtils.saveLocationPermissionResult(context, isGranted)
+        // Optionally handle result
+    }
+
+    // Request location permission after authentication, only if not asked before
+    LaunchedEffect(startDestination) {
+        if (startDestination != null && !PermissionUtils.wasLocationPermissionAsked(context)) {
+            locationPermissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
     // Show NavHost after authentication
     if (startDestination != null) {
         NavHost(
@@ -81,8 +96,7 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
                 LoginScreen(
                     onNavigateToSignup = { navController.navigate("signup") },
                     onLoginSuccess = { navController.navigate("home"){
-                        popUpTo("login") { inclusive = true
-                    }
+                        popUpTo("login") { inclusive = true }
                     } },
                 )
             }
@@ -100,5 +114,3 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
         }
     }
 }
-
-
