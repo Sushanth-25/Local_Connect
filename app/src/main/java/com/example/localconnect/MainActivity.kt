@@ -48,23 +48,32 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
 
         // Check if user is valid (authenticated and not anonymous)
         if (user != null) {
-            // Verify token is still valid (not expired)
-            user.getIdToken(true)
-                .addOnCompleteListener { task ->
-                    if (task.isSuccessful && !user.isAnonymous) {
-                        // User is authenticated and token is valid
-                        startDestination = "home"
-                    } else {
-                        // Token refresh failed or user is anonymous
-                        startDestination = "login"
+            // Check if user signed in with Google (they don't need email verification)
+            val isGoogleUser = user.providerData.any { it.providerId == "google.com" }
+
+            if (isGoogleUser || user.isEmailVerified) {
+                // Verify token is still valid (not expired)
+                user.getIdToken(true)
+                    .addOnCompleteListener { task ->
+                        if (task.isSuccessful && !user.isAnonymous) {
+                            // User is authenticated and token is valid
+                            startDestination = "home"
+                        } else {
+                            // Token refresh failed or user is anonymous
+                            startDestination = "login"
+                        }
+                        onAuthFinished()
                     }
-                    onAuthFinished()
-                }
-                .addOnFailureListener {
-                    // Authentication validation failed
-                    startDestination = "login"
-                    onAuthFinished()
-                }
+                    .addOnFailureListener {
+                        // Authentication validation failed
+                        startDestination = "login"
+                        onAuthFinished()
+                    }
+            } else {
+                // User exists but email not verified (only for email/password users)
+                startDestination = "email_verification/${user.email}"
+                onAuthFinished()
+            }
         } else {
             // No user found
             startDestination = "login"
@@ -97,19 +106,46 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
                     onNavigateToSignup = { navController.navigate("signup") },
                     onLoginSuccess = { navController.navigate("home"){
                         popUpTo("login") { inclusive = true }
-                    } },
+                    }},
+                    onEmailNotVerified = { email ->
+                        navController.navigate("email_verification/$email")
+                    }
                 )
             }
             composable("signup") {
                 SignupScreen(
-                    onNavigateToLogin = { navController.navigate("login") }
+                    onNavigateToLogin = { navController.navigate("login") },
+                    onNavigateToEmailVerification = { email ->
+                        navController.navigate("email_verification/$email")
+                    },
+                    onNavigateToHome = {
+                        navController.navigate("home") {
+                            popUpTo("signup") { inclusive = true }
+                        }
+                    }
+                )
+            }
+            composable("email_verification/{email}") { backStackEntry ->
+                val email = backStackEntry.arguments?.getString("email") ?: ""
+                EmailVerificationScreen(
+                    email = email,
+                    onVerificationComplete = {
+                        navController.navigate("home") {
+                            popUpTo("email_verification/{email}") { inclusive = true }
+                        }
+                    },
+                    onBackToLogin = {
+                        navController.navigate("login") {
+                            popUpTo("email_verification/{email}") { inclusive = true }
+                        }
+                    }
                 )
             }
             composable("home") {
-                HomeScreen(navController = navController) // Pass navController to HomeScreen
+                HomeScreen(navController = navController)
             }
             composable("profile") {
-                ProfileScreen(navController = navController) // Add profile route
+                ProfileScreen(navController = navController)
             }
         }
     }

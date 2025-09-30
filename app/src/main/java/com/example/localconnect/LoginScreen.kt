@@ -29,12 +29,29 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 fun LoginScreen(
     onNavigateToSignup: () -> Unit,
     onLoginSuccess: () -> Unit,
+    onEmailNotVerified: (String) -> Unit, // Add parameter for email verification navigation
     viewModel: AuthViewModel = viewModel()
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     val authResult by viewModel.authResult.collectAsState()
     val context = LocalContext.current
+
+    // Handle authentication results
+    LaunchedEffect(authResult) {
+        when (authResult) {
+            is AuthResult.Success -> {
+                onLoginSuccess()
+            }
+            is AuthResult.EmailNotVerified -> {
+                onEmailNotVerified(email)
+            }
+            is AuthResult.Error -> {
+                Toast.makeText(context, (authResult as AuthResult.Error).message, Toast.LENGTH_SHORT).show()
+            }
+            else -> { /* Handle other states */ }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -65,6 +82,7 @@ fun LoginScreen(
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(16.dp))
+
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
@@ -76,7 +94,9 @@ fun LoginScreen(
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                 modifier = Modifier.fillMaxWidth()
             )
+
             Spacer(modifier = Modifier.height(8.dp))
+
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
@@ -89,32 +109,66 @@ fun LoginScreen(
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 modifier = Modifier.fillMaxWidth()
             )
+
+            // Show error message if login failed
+            if (authResult is AuthResult.Error) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = (authResult as AuthResult.Error).message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            // Show email not verified message
+            if (authResult is AuthResult.EmailNotVerified) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                    )
+                ) {
+                    Text(
+                        text = "Please verify your email address before logging in.",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
+
             Button(
                 onClick = {
-                    viewModel.login(email, password)
-                    if (authResult is AuthResult.Success) {
-                        onLoginSuccess()
+                    if (email.isNotBlank() && password.isNotBlank()) {
+                        viewModel.login(email, password)
                     } else {
-                        Toast.makeText(context, "Login failed", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Please fill in all fields", Toast.LENGTH_SHORT).show()
                     }
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                enabled = authResult !is AuthResult.Loading
             ) {
-                Text("Login")
+                if (authResult is AuthResult.Loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text("Login")
+                }
             }
-            Spacer(modifier = Modifier.height(8.dp))
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             TextButton(onClick = onNavigateToSignup) {
                 Text("Don't have an account? Sign up")
             }
-        }
-    }
-
-    if (authResult is AuthResult.Success) {
-        LaunchedEffect(Unit) {
-            Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
-            onLoginSuccess()
-            viewModel.resetState()
         }
     }
 }

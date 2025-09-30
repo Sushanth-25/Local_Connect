@@ -40,6 +40,8 @@ private const val TAG = "SignupScreen"
 @Composable
 fun SignupScreen(
     onNavigateToLogin: () -> Unit,
+    onNavigateToEmailVerification: (String) -> Unit,
+    onNavigateToHome: () -> Unit, // Add direct navigation to home
     viewModel: AuthViewModel = viewModel()
 ) {
     var name by remember { mutableStateOf("") }
@@ -54,52 +56,60 @@ fun SignupScreen(
 
     // Google Sign-In launcher
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        try {
-            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-            val account = task.getResult(ApiException::class.java)
-            Log.d(TAG, "Google Sign In successful: ${account.email}")
+        Log.d(TAG, "Google Sign-In result received with result code: ${result.resultCode}")
 
-            // Get the ID token from the account
-            val idToken = account.idToken
-            if (idToken != null) {
-                // Create a credential for Firebase Auth
-                val credential = GoogleAuthProvider.getCredential(idToken, null)
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            try {
+                val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+                val account = task.getResult(ApiException::class.java)
+                Log.d(TAG, "Google Sign In successful: ${account.email}")
 
-                // Sign in to Firebase with the Google credential
-                FirebaseAuth.getInstance().signInWithCredential(credential)
-                    .addOnCompleteListener { task ->
-                        if (task.isSuccessful) {
-                            Log.d(TAG, "Firebase Auth with Google successful")
-                            val user = FirebaseAuth.getInstance().currentUser
+                // Get the ID token from the account
+                val idToken = account.idToken
+                if (idToken != null) {
+                    Log.d(TAG, "ID token received, authenticating with Firebase...")
+                    // Create a credential for Firebase Auth
+                    val credential = GoogleAuthProvider.getCredential(idToken, null)
 
-                            if (user != null) {
-                                Log.d(TAG, "User registered: ${user.uid}")
-                                // Navigate to the next screen on successful signup
-                                onNavigateToLogin()
-                            } else {
-                                Log.e(TAG, "User is null after successful authentication")
-                            }
-                        } else {
-                            Log.e(TAG, "Firebase Auth failed", task.exception)
-                        }
-                    }
-            } else {
-                Log.e(TAG, "Google Sign In failed: ID token is null")
+                    // Use ViewModel's signInWithGoogle function
+                    viewModel.signInWithGoogle(credential)
+                } else {
+                    Log.e(TAG, "Google Sign In failed: ID token is null")
+                }
+            } catch (e: ApiException) {
+                Log.e(TAG, "Google Sign In failed with status code: ${e.statusCode}, message: ${e.message}", e)
+                // Handle specific error codes
+                when (e.statusCode) {
+                    12501 -> Log.e(TAG, "User cancelled the sign-in")
+                    7 -> Log.e(TAG, "Network error")
+                    8 -> Log.e(TAG, "Internal error")
+                    10 -> Log.e(TAG, "Developer error - check configuration")
+                    else -> Log.e(TAG, "Unknown Google Sign-In error: ${e.statusCode}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Google Sign In unknown error", e)
             }
-        } catch (e: ApiException) {
-            Log.e(TAG, "Google Sign In failed: ${e.statusCode}", e)
-        } catch (e: Exception) {
-            Log.e(TAG, "Google Sign In unknown error", e)
+        } else if (result.resultCode == android.app.Activity.RESULT_CANCELED) {
+            Log.d(TAG, "Google Sign-In was cancelled by user")
+        } else {
+            Log.e(TAG, "Google Sign-In failed with result code: ${result.resultCode}")
         }
     }
 
     // Observe authResult for successful signup and navigate
     LaunchedEffect(authResult) {
         android.util.Log.d("SignupScreen", "Auth result changed: $authResult")
-        if (authResult is AuthResult.Success) {
-            android.util.Log.d("SignupScreen", "Auth success detected! Navigating to login...")
-            viewModel.resetState()
-            onNavigateToLogin()
+        when (authResult) {
+            is AuthResult.Success -> {
+                android.util.Log.d("SignupScreen", "Auth success detected! Navigating to home...")
+                viewModel.resetState()
+                onNavigateToHome() // Navigate directly to home for successful authentication
+            }
+            is AuthResult.EmailVerificationSent -> {
+                android.util.Log.d("SignupScreen", "Email verification sent! Navigating to verification screen...")
+                onNavigateToEmailVerification(email)
+            }
+            else -> { /* Handle other states */ }
         }
     }
 
@@ -322,19 +332,25 @@ fun SignupScreen(
                     Button(
                         onClick = {
                             // Validate all fields
-                            if (name.isNotBlank() && email.isNotBlank() &&
-                                password.isNotBlank() && password == confirmPassword) {
-                                coroutineScope.launch {
-                                    android.util.Log.d("SignupScreen", "Starting signup process")
-                                    // First attempt to sign up
-                                    viewModel.signupWithEmail(name, email, password)
-
-                                    // Set a delayed navigation as a failsafe
-                                    kotlinx.coroutines.delay(3000) // Wait 3 seconds
-                                    if (authResult !is AuthResult.Error) {
-                                        android.util.Log.d("SignupScreen", "Failsafe navigation triggered")
-                                        handleSuccessfulSignup()
-                                    }
+                            when {
+                                name.isBlank() -> {
+                                    // Show error for empty name
+                                }
+                                email.isBlank() -> {
+                                    // Show error for empty email
+                                }
+                                password.isBlank() -> {
+                                    // Show error for empty password
+                                }
+                                password != confirmPassword -> {
+                                    // Show error for password mismatch
+                                }
+                                password.length < 6 -> {
+                                    // Show error for weak password
+                                }
+                                else -> {
+                                    android.util.Log.d("SignupScreen", "Starting signup with email verification")
+                                    viewModel.signupWithEmailVerification(name, email, password)
                                 }
                             }
                         },
@@ -351,7 +367,41 @@ fun SignupScreen(
                                 strokeWidth = 2.dp
                             )
                         } else {
-                            Text("Sign Up", fontSize = 16.sp)
+                            Text(
+                                text = "Create Account",
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontWeight = FontWeight.Medium
+                                )
+                            )
+                        }
+                    }
+
+                    // Show verification message if email verification was sent
+                    if (authResult is AuthResult.EmailVerificationSent) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Email,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Verification email sent! Please check your inbox.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                     }
                 }
