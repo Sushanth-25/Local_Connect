@@ -170,9 +170,8 @@ fun HomeScreen(navController: NavHostController) {
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        val cameraGranted = permissions[Manifest.permission.CAMERA] ?: false
-        val locationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
-        if (cameraGranted && locationGranted) {
+        PermissionUtils.handlePostCreationPermissionResult(context, permissions)
+        if (PermissionUtils.hasPostCreationPermissions(context)) {
             Toast.makeText(context, "Permissions granted! You can now report issues.", Toast.LENGTH_SHORT).show()
         } else {
             Toast.makeText(context, "Permissions needed to report issues", Toast.LENGTH_SHORT).show()
@@ -211,7 +210,9 @@ fun HomeScreen(navController: NavHostController) {
                 )
                 NavigationBarItem(
                     selected = false,
-                    onClick = { },
+                    onClick = {
+                        navController.navigate("map") // Navigate to map screen
+                    },
                     icon = { Icon(Icons.Default.Map, contentDescription = "Map") },
                     label = { Text("Map") }
                 )

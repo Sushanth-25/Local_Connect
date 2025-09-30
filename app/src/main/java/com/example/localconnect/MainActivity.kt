@@ -83,16 +83,16 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
 
     // Location permission launcher
     val locationPermissionLauncher = rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        PermissionUtils.saveLocationPermissionResult(context, isGranted)
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        PermissionUtils.handleLocationPermissionResult(context, permissions)
         // Optionally handle result
     }
 
     // Request location permission after authentication, only if not asked before
     LaunchedEffect(startDestination) {
         if (startDestination != null && !PermissionUtils.wasLocationPermissionAsked(context)) {
-            locationPermissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+            locationPermissionLauncher.launch(PermissionUtils.getLocationPermissions())
         }
     }
     // Show NavHost after authentication
@@ -146,6 +146,9 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
             }
             composable("profile") {
                 ProfileScreen(navController = navController)
+            }
+            composable("map") {
+                MapScreen(navController = navController)
             }
         }
     }

@@ -60,7 +60,8 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
     implementation("androidx.compose.material:material-icons-extended:1.6.1")
 
-
+    // OSMDroid for maps
+    implementation("org.osmdroid:osmdroid-android:6.1.16")
 
     // Import the Firebase BoM
     implementation(platform("com.google.firebase:firebase-bom:34.3.0"))

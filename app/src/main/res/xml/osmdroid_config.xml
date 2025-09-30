@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="osmdroid_userAgent">com.example.localconnect</string>
+    <integer name="osmdroid_cacheSize">104857600</integer> <!-- 100MB cache -->
+    <integer name="osmdroid_cacheTrimSize">52428800</integer> <!-- 50MB trim size -->
+</resources>
+
