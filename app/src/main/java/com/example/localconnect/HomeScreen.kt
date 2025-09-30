@@ -29,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavHostController
 
 enum class PostType {
     ISSUE, CELEBRATION, GENERAL, LOST_FOUND
@@ -154,7 +155,7 @@ fun EnhancedFilterBar(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen() {
+fun HomeScreen(navController: NavHostController) {
     val context = LocalContext.current
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Explore", "Local Community")
@@ -222,7 +223,9 @@ fun HomeScreen() {
                 )
                 NavigationBarItem(
                     selected = false,
-                    onClick = { },
+                    onClick = {
+                        navController.navigate("profile") // Navigate to profile screen
+                    },
                     icon = { Icon(Icons.Default.Person, contentDescription = "Profile") },
                     label = { Text("Profile") }
                 )

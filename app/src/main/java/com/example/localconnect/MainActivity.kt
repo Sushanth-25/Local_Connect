@@ -92,8 +92,13 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
                 )
             }
             composable("home") {
-                HomeScreen() // Implement HomeScreen as needed
+                HomeScreen(navController = navController) // Pass navController to HomeScreen
+            }
+            composable("profile") {
+                ProfileScreen(navController = navController) // Add profile route
             }
         }
     }
 }
+
+
