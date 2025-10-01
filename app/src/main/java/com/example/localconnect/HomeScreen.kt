@@ -30,6 +30,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.localconnect.data.model.Post
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 enum class PostType {
     ISSUE, CELEBRATION, GENERAL, LOST_FOUND
@@ -78,7 +82,7 @@ fun EnhancedFilterBar(
     onCategorySelected: (String) -> Unit,
     onSortSelected: (SortBy) -> Unit
 ) {
-    val categories = listOf("All", "Issues", "Celebrations", "General", "Lost & Found")
+    val categories = listOf("All", "Health", "Roads", "Infrastructure", "Lost & Found", "Events", "Emergency", "General")
 
     Column {
         // Main category filters
@@ -95,17 +99,20 @@ fun EnhancedFilterBar(
                     label = { Text(category) },
                     leadingIcon = {
                         when (category) {
-                            "Issues" -> Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(16.dp))
-                            "Celebrations" -> Icon(Icons.Default.Celebration, contentDescription = null, modifier = Modifier.size(16.dp))
-                            "General" -> Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(16.dp))
+                            "Health" -> Icon(Icons.Default.LocalHospital, contentDescription = null, modifier = Modifier.size(16.dp))
+                            "Roads" -> Icon(Icons.Default.Route, contentDescription = null, modifier = Modifier.size(16.dp))
+                            "Infrastructure" -> Icon(Icons.Default.Construction, contentDescription = null, modifier = Modifier.size(16.dp))
                             "Lost & Found" -> Icon(Icons.Default.Pets, contentDescription = null, modifier = Modifier.size(16.dp))
+                            "Events" -> Icon(Icons.Default.Event, contentDescription = null, modifier = Modifier.size(16.dp))
+                            "Emergency" -> Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(16.dp))
+                            "General" -> Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(16.dp))
                         }
                     }
                 )
             }
         }
 
-        // Sort options only (removed local toggle)
+        // Sort options
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Start,
@@ -163,6 +170,70 @@ fun HomeScreen(navController: NavHostController) {
     var selectedCategory by remember { mutableStateOf("All") }
     var selectedSort by remember { mutableStateOf(SortBy.RECENT) }
 
+    // Connect to Firebase posts via ViewModel
+    val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModelFactory())
+    val homeUiState by homeViewModel.uiState.collectAsState()
+
+    // Location permission launcher for community posts
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineLocationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarseLocationGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+
+        if (fineLocationGranted || coarseLocationGranted) {
+            // Get current location and update posts
+            getCurrentLocationForCommunity(context, homeViewModel)
+        } else {
+            Toast.makeText(context, "Location permission is required for community posts", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // Load posts based on selected tab and handle location permission
+    LaunchedEffect(selectedTab) {
+        when (selectedTab) {
+            0 -> homeViewModel.loadPosts(context) // Explore - all posts with location filtering
+            1 -> {
+                // Local Community tab - check if user has location first
+                val userLocation = com.localconnect.util.UserLocationManager.getUserLocation(context)
+                if (userLocation == null) {
+                    // No user location saved, request permission
+                    val hasLocationPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                        context, android.Manifest.permission.ACCESS_FINE_LOCATION
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
+                    androidx.core.content.ContextCompat.checkSelfPermission(
+                        context, android.Manifest.permission.ACCESS_COARSE_LOCATION
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+                    if (hasLocationPermission) {
+                        // Has permission but no saved location, get current location
+                        getCurrentLocationForCommunity(context, homeViewModel)
+                    } else {
+                        // No permission, request it
+                        locationPermissionLauncher.launch(
+                            arrayOf(
+                                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                                android.Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    }
+                } else {
+                    // User has location, load community posts
+                    homeViewModel.loadCommunityPosts(context)
+                }
+            }
+        }
+    }
+
+    // Function to refresh posts based on current tab
+    val refreshPosts = {
+        Toast.makeText(context, "Refreshing posts...", Toast.LENGTH_SHORT).show()
+        when (selectedTab) {
+            0 -> homeViewModel.loadPosts(context)
+            1 -> homeViewModel.loadCommunityPosts(context)
+        }
+    }
+
     LaunchedEffect(Unit) {
         Toast.makeText(context, "Welcome to LocalConnect!", Toast.LENGTH_SHORT).show()
     }
@@ -186,6 +257,30 @@ fun HomeScreen(navController: NavHostController) {
         Toast.makeText(context, "Photo selected from gallery!", Toast.LENGTH_SHORT).show()
     }
 
+    // Pull-to-refresh state
+    var isRefreshing by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isRefreshing) {
+        if (isRefreshing) {
+            refreshPosts()
+            delay(1000) // Simulate network delay
+            isRefreshing = false
+        }
+    }
+
+    LaunchedEffect(homeUiState.isLoading) {
+        if (!homeUiState.isLoading) {
+            isRefreshing = false
+        }
+    }
+
+    // Show error message if any
+    LaunchedEffect(homeUiState.error) {
+        homeUiState.error?.let {
+            Toast.makeText(context, "Error: $it", Toast.LENGTH_LONG).show()
+        }
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -196,6 +291,14 @@ fun HomeScreen(navController: NavHostController) {
                     }
                 },
                 actions = {
+                    // Add refresh button
+                    IconButton(onClick = { isRefreshing = true }) {
+                        if (isRefreshing) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                        } else {
+                            Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        }
+                    }
                     IconButton(onClick = { }) {
                         Badge(containerColor = Color.Red) {
                             Text("3", color = Color.White, fontSize = 10.sp)
@@ -242,137 +345,194 @@ fun HomeScreen(navController: NavHostController) {
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { showPhotoDialog = true },
+                onClick = { navController.navigate("create_post") },
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Create Post")
             }
         }
     ) { paddingValues ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Tab Row for Explore vs Local
-            TabRow(selectedTabIndex = selectedTab) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        text = { Text(title) },
-                        icon = {
-                            when (index) {
-                                0 -> Icon(Icons.Default.Explore, contentDescription = null)
-                                1 -> Icon(Icons.Default.LocationCity, contentDescription = null)
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                // Tab Row for Explore vs Local
+                TabRow(selectedTabIndex = selectedTab) {
+                    tabs.forEachIndexed { index, title ->
+                        Tab(
+                            selected = selectedTab == index,
+                            onClick = { selectedTab = index },
+                            text = { Text(title) },
+                            icon = {
+                                when (index) {
+                                    0 -> Icon(Icons.Default.Explore, contentDescription = null)
+                                    1 -> Icon(Icons.Default.LocationCity, contentDescription = null)
+                                }
+                            }
+                        )
+                    }
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp)
+                ) {
+                    // Compact header section (25% of space)
+                    Column(
+                        modifier = Modifier.weight(0.25f)
+                    ) {
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Compact welcome message
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.EmojiPeople, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = if (selectedTab == 0) "Explore Communities" else "Your Local Community",
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                    Text(
+                                        text = if (selectedTab == 0) "Discover what's happening around you" else "Stay connected with your neighborhood",
+                                        fontSize = 12.sp,
+                                        color = Color.Gray
+                                    )
+                                }
                             }
                         }
-                    )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Enhanced Filter Bar
+                        EnhancedFilterBar(
+                            selectedCategory = selectedCategory,
+                            selectedSort = selectedSort,
+                            onCategorySelected = { selectedCategory = it },
+                            onSortSelected = { selectedSort = it }
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Compact Quick Actions
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            CompactQuickActionButton("Report", Icons.Default.Report, Color(0xFFE57373))
+                            CompactQuickActionButton("Lost & Found", Icons.Default.Pets, Color(0xFF81C784))
+                            CompactQuickActionButton("Events", Icons.Default.Event, Color(0xFF64B5F6))
+                            CompactQuickActionButton("Emergency", Icons.Default.Emergency, Color(0xFFFF8A65))
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Posts section (75% of space)
+                    Column(
+                        modifier = Modifier.weight(0.75f)
+                    ) {
+                        // Show Firebase posts instead of dummy data
+                        val realPosts = homeUiState.posts
+                        val filteredRealPosts = getFilteredRealPosts(
+                            posts = realPosts,
+                            category = selectedCategory,
+                            localOnly = selectedTab == 1
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "📍 Community Posts (${filteredRealPosts.size})",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+
+                            Text(
+                                text = if (selectedTab == 0) "All communities" else "Local only",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        if (homeUiState.isLoading && realPosts.isEmpty()) {
+                            // Show loading indicator for initial load
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                        } else if (filteredRealPosts.isEmpty()) {
+                            // Show empty state
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(
+                                        Icons.Default.PostAdd,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(48.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = "No posts yet",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = "Be the first to share something with your community!",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        } else {
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                items(filteredRealPosts) { post ->
+                                    RealPostCard(post)
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp)
-            ) {
-                // Compact header section (25% of space)
-                Column(
-                    modifier = Modifier.weight(0.25f)
+            // Pull to refresh indicator
+            if (isRefreshing) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .padding(top = 8.dp),
+                    contentAlignment = Alignment.TopCenter
                 ) {
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Compact welcome message
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.EmojiPeople, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    text = if (selectedTab == 0) "Explore Communities" else "Your Local Community",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                                Text(
-                                    text = if (selectedTab == 0) "Discover what's happening around you" else "Stay connected with your neighborhood",
-                                    fontSize = 12.sp,
-                                    color = Color.Gray
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Enhanced Filter Bar
-                    EnhancedFilterBar(
-                        selectedCategory = selectedCategory,
-                        selectedSort = selectedSort,
-                        onCategorySelected = { selectedCategory = it },
-                        onSortSelected = { selectedSort = it }
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Compact Quick Actions
-                    Row(
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        CompactQuickActionButton("Report", Icons.Default.Report, Color(0xFFE57373))
-                        CompactQuickActionButton("Lost & Found", Icons.Default.Pets, Color(0xFF81C784))
-                        CompactQuickActionButton("Events", Icons.Default.Event, Color(0xFF64B5F6))
-                        CompactQuickActionButton("Emergency", Icons.Default.Emergency, Color(0xFFFF8A65))
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Posts section (75% of space)
-                Column(
-                    modifier = Modifier.weight(0.75f)
-                ) {
-                    val filteredPosts = getFilteredPosts(
-                        posts = dummyCommunityPosts,
-                        category = selectedCategory,
-                        sortBy = selectedSort,
-                        localOnly = selectedTab == 1
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "📍 Community Posts (${filteredPosts.size})",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-
-                        Text(
-                            text = if (selectedTab == 0) "All communities" else "Local only",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        items(filteredPosts) { post ->
-                            EnhancedPostCard(post)
-                        }
-                    }
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
                 }
             }
         }
@@ -624,6 +784,75 @@ fun getFilteredPosts(
     }
 }
 
+fun getFilteredRealPosts(
+    posts: List<Post>,
+    category: String,
+    localOnly: Boolean
+): List<Post> {
+    var filtered = posts
+
+    // Filter by local/nearby
+    if (localOnly) {
+        filtered = filtered.filter { it.isLocalOnly }
+    }
+
+    // Filter by category
+    if (category != "All") {
+        filtered = filtered.filter { it.category == category }
+    }
+
+    return filtered.sortedByDescending { it.timestamp ?: 0L } // Show newest first
+}
+
+// Helper function to get current location for community posts
+@Suppress("DEPRECATION")
+private fun getCurrentLocationForCommunity(
+    context: android.content.Context,
+    homeViewModel: HomeViewModel
+) {
+    try {
+        val locationManager = context.getSystemService(android.content.Context.LOCATION_SERVICE) as android.location.LocationManager
+
+        // Check if location services are enabled
+        if (!locationManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) &&
+            !locationManager.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)) {
+            Toast.makeText(context, "Please enable location services", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        // Check permissions
+        if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED &&
+            androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(context, "Location permission required", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        Toast.makeText(context, "Getting your location for community posts...", Toast.LENGTH_SHORT).show()
+
+        // Get last known location first (faster)
+        val lastKnownLocation = locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)
+            ?: locationManager.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER)
+
+        if (lastKnownLocation != null) {
+            val locationName = "Current Location"
+
+            // Save user location and update posts
+            homeViewModel.updateUserLocation(
+                context,
+                lastKnownLocation.latitude,
+                lastKnownLocation.longitude,
+                locationName
+            )
+
+            Toast.makeText(context, "Location updated! Community posts filtered by 30km radius", Toast.LENGTH_LONG).show()
+        } else {
+            Toast.makeText(context, "Unable to get current location. Please try again.", Toast.LENGTH_LONG).show()
+        }
+    } catch (e: Exception) {
+        Toast.makeText(context, "Error getting location: ${e.message}", Toast.LENGTH_LONG).show()
+    }
+}
+
 // Legacy data models for backward compatibility
 data class Issue(
     val title: String,
@@ -690,3 +919,4 @@ fun IssueCard(issue: Issue) {
         }
     }
 }
+

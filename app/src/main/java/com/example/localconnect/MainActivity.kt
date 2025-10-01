@@ -16,6 +16,9 @@ import com.example.localconnect.ui.theme.LocalConnectTheme
 import com.google.firebase.auth.FirebaseAuth
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.ui.platform.LocalContext
+import com.localconnect.presentation.ui.CreatePostScreen
+import com.localconnect.util.PermissionUtils
+
 class MainActivity : ComponentActivity() {
     private var isAuthFinished = false
 
@@ -150,8 +153,20 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
             composable("edit_profile") {
                 EditProfileScreen(navController = navController)
             }
-            composable("map") {
-                MapScreen(navController = navController)
+            composable("map?isPicker={isPicker}") { backStackEntry ->
+                val isPicker = backStackEntry.arguments?.getString("isPicker")?.toBoolean() ?: false
+                MapScreen(
+                    navController = navController,
+                    isPicker = isPicker
+                )
+            }
+            composable("create_post") {
+                CreatePostScreen(
+                    navController = navController,
+                    onPostCreated = {
+                        navController.popBackStack()
+                    }
+                )
             }
         }
     }

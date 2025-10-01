@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavHostController
+import com.localconnect.util.PermissionUtils
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
@@ -32,6 +33,7 @@ import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 @Composable
 fun MapScreen(
     navController: NavHostController,
+    isPicker: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -79,13 +81,46 @@ fun MapScreen(
     ) {
         // Top App Bar
         TopAppBar(
-            title = { Text("Select Location") },
+            title = { Text(if (isPicker) "Select Location" else "Map") },
             navigationIcon = {
                 IconButton(onClick = { navController.popBackStack() }) {
                     Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                 }
+            },
+            actions = {
+                if (isPicker && selectedLocation != null) {
+                    TextButton(
+                        onClick = {
+                            selectedLocation?.let { location ->
+                                navController.previousBackStackEntry?.savedStateHandle?.set(
+                                    "selected_location",
+                                    "${location.latitude}, ${location.longitude}"
+                                )
+                                navController.popBackStack()
+                            }
+                        }
+                    ) {
+                        Text("Confirm", color = MaterialTheme.colorScheme.primary)
+                    }
+                }
             }
         )
+
+        // Show selected location info if in picker mode
+        if (isPicker && selectedLocation != null) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+            ) {
+                Text(
+                    text = "Selected: ${String.format("%.6f", selectedLocation!!.latitude)}, ${String.format("%.6f", selectedLocation!!.longitude)}",
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
 
         // Map View with floating GPS button
         Box(
@@ -96,7 +131,9 @@ fun MapScreen(
             OSMMap(
                 modifier = Modifier.fillMaxSize(),
                 onLocationSelected = { lat, lng ->
-                    selectedLocation = GeoPoint(lat, lng)
+                    if (isPicker) {
+                        selectedLocation = GeoPoint(lat, lng)
+                    }
                 },
                 onMapViewCreated = { createdMapView, createdMyLocationOverlay ->
                     mapView = createdMapView
@@ -105,7 +142,8 @@ fun MapScreen(
                 },
                 onLocationUpdate = { location ->
                     currentLocation = location
-                }
+                },
+                isPicker = isPicker
             )
 
             // Floating GPS button (bottom right like Google Maps)
@@ -206,7 +244,20 @@ fun MapScreen(
                         ) {
                             Button(
                                 onClick = {
-                                    // TODO: Save location and navigate back
+                                    selectedLocation?.let { location ->
+                                        navController.previousBackStackEntry?.savedStateHandle?.set(
+                                            "selected_location",
+                                            "Lat: ${"%.4f".format(location.latitude)}, Lon: ${"%.4f".format(location.longitude)}"
+                                        )
+                                        navController.previousBackStackEntry?.savedStateHandle?.set(
+                                            "selected_latitude",
+                                            location.latitude
+                                        )
+                                        navController.previousBackStackEntry?.savedStateHandle?.set(
+                                            "selected_longitude",
+                                            location.longitude
+                                        )
+                                    }
                                     navController.popBackStack()
                                 },
                                 modifier = Modifier.weight(1f)
@@ -284,7 +335,8 @@ fun OSMMap(
     modifier: Modifier = Modifier,
     onLocationSelected: (Double, Double) -> Unit,
     onMapViewCreated: (MapView, MyLocationNewOverlay?) -> Unit = { _, _ -> },
-    onLocationUpdate: (GeoPoint) -> Unit = {}
+    onLocationUpdate: (GeoPoint) -> Unit = {},
+    isPicker: Boolean = false
 ) {
     val context = LocalContext.current
 

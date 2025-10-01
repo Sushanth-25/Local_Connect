@@ -1,4 +1,4 @@
-package com.example.localconnect
+package com.localconnect.util
 
 import android.Manifest
 import android.content.Context
