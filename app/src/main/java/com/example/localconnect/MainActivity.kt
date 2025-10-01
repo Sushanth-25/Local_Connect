@@ -147,6 +147,9 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
             composable("profile") {
                 ProfileScreen(navController = navController)
             }
+            composable("edit_profile") {
+                EditProfileScreen(navController = navController)
+            }
             composable("map") {
                 MapScreen(navController = navController)
             }

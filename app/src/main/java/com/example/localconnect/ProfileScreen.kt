@@ -3,11 +3,12 @@ package com.example.localconnect
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -15,23 +16,48 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(navController: NavHostController) {
     val auth = FirebaseAuth.getInstance()
     val currentUser = auth.currentUser
+    val db = FirebaseFirestore.getInstance()
 
-    val name=currentUser?.displayName ?: "User Name"
-    val email=currentUser?.email ?: "User Email"
-    val phone=currentUser?.phoneNumber ?: "Phone Number"
+    val name = currentUser?.displayName ?: "User Name"
+    val email = currentUser?.email ?: "User Email"
+
+    // State for phone number from Firestore
+    var phoneNumber by remember { mutableStateOf("Phone Number") }
+    var isLoading by remember { mutableStateOf(true) }
+
+    // Fetch phone number from Firestore
+    LaunchedEffect(Unit) {
+        currentUser?.uid?.let { userId ->
+            try {
+                val userDoc = db.collection("users").document(userId).get().await()
+                if (userDoc.exists()) {
+                    phoneNumber = userDoc.getString("phoneNumber") ?: "Phone Number"
+                }
+            } catch (e: Exception) {
+                // Failed to load data, keep default value
+            } finally {
+                isLoading = false
+            }
+        } ?: run {
+            isLoading = false
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("My Profile") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -52,29 +78,60 @@ fun ProfileScreen(navController: NavHostController) {
                 modifier = Modifier.size(80.dp)
             )
 
-            // User email
+            // User name
             Text(
                 text = name,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold
             )
 
-            //Email Container
-            Surface (
-                modifier=Modifier.fillMaxWidth(),
-                shape=MaterialTheme.shapes.medium,
+            // Email Container
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
                 tonalElevation = 2.dp
-            ){
+            ) {
                 Row(
-                    modifier=Modifier.padding(12.dp),
+                    modifier = Modifier.padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
-
-                ){
+                ) {
                     Text(
-                        text="Email: ",
+                        text = "Email: ",
                         fontWeight = FontWeight.SemiBold
                     )
-                    Text(text=email)
+                    Text(text = email)
+                }
+            }
+
+            // Phone Number Container
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                tonalElevation = 2.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Phone,
+                        contentDescription = "Phone",
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Phone: ",
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(text = phoneNumber)
+                    }
                 }
             }
 
@@ -84,10 +141,10 @@ fun ProfileScreen(navController: NavHostController) {
             ProfileOption(
                 title = "Edit Profile",
                 icon = Icons.Default.Edit,
-                onClick = { /* Handle edit profile */ }
+                onClick = { navController.navigate("edit_profile") }
             )
 
-            Divider()
+            HorizontalDivider()
 
             Button(
                 onClick = {
@@ -101,7 +158,7 @@ fun ProfileScreen(navController: NavHostController) {
                 ),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(Icons.Default.ExitToApp, contentDescription = "Sign Out")
+                Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Sign Out")
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Sign Out")
             }
@@ -137,7 +194,7 @@ fun ProfileOption(
             )
             Spacer(modifier = Modifier.weight(1f))
             Icon(
-                Icons.Default.ArrowBack,
+                Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = null,
                 modifier = Modifier.size(16.dp)
             )
