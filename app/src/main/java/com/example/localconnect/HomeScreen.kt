@@ -167,15 +167,23 @@ fun HomeScreen(navController: NavHostController) {
         Toast.makeText(context, "Welcome to LocalConnect!", Toast.LENGTH_SHORT).show()
     }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        PermissionUtils.handlePostCreationPermissionResult(context, permissions)
-        if (PermissionUtils.hasPostCreationPermissions(context)) {
-            Toast.makeText(context, "Permissions granted! You can now report issues.", Toast.LENGTH_SHORT).show()
-        } else {
-            Toast.makeText(context, "Permissions needed to report issues", Toast.LENGTH_SHORT).show()
-        }
+    // Dialog state
+    var showPhotoDialog by remember { mutableStateOf(false) }
+
+    // Camera launcher
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap ->
+        // Handle captured photo bitmap
+        Toast.makeText(context, "Photo captured!", Toast.LENGTH_SHORT).show()
+    }
+
+    // Gallery launcher
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        // Handle selected photo URI
+        Toast.makeText(context, "Photo selected from gallery!", Toast.LENGTH_SHORT).show()
     }
 
     Scaffold(
@@ -234,14 +242,7 @@ fun HomeScreen(navController: NavHostController) {
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = {
-                    permissionLauncher.launch(
-                        arrayOf(
-                            Manifest.permission.CAMERA,
-                            Manifest.permission.ACCESS_FINE_LOCATION
-                        )
-                    )
-                },
+                onClick = { showPhotoDialog = true },
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Create Post")
@@ -375,8 +376,30 @@ fun HomeScreen(navController: NavHostController) {
                 }
             }
         }
+
+        // Photo selection dialog
+        if (showPhotoDialog) {
+            AlertDialog(
+                onDismissRequest = { showPhotoDialog = false },
+                title = { Text("Select Photo") },
+                text = { Text("Choose an option to add a photo") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showPhotoDialog = false
+                        cameraLauncher.launch(null)
+                    }) { Text("Camera") }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        showPhotoDialog = false
+                        galleryLauncher.launch("image/*")
+                    }) { Text("Gallery") }
+                }
+            )
+        }
     }
 }
+
 
 @Composable
 fun QuickActionsSection() {
