@@ -18,7 +18,7 @@ data class Post(
     @PropertyName("videoUrl") val videoUrl: String? = null,
     @PropertyName("mediaUrls") val mediaUrls: List<String> = emptyList(),
     @PropertyName("tags") val tags: List<String> = emptyList(),
-    @PropertyName("localOnly") val isLocalOnly: Boolean = false,
+    @PropertyName("localOnly") val isLocalOnly: Boolean = true,
     @PropertyName("timestamp") val timestamp: Long? = null,
     @PropertyName("updatedAt") val updatedAt: Long? = null,
     @PropertyName("likes") val likes: Int = 0,

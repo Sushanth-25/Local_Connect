@@ -198,7 +198,7 @@ data class CreatePostUiState(
     val description: String = "",
     val tags: List<String> = emptyList(),
     val location: String = "",
-    val isLocalOnly: Boolean = false, // Changed default to false (community posts)
+    val isLocalOnly: Boolean = true,
     val priority: Int? = null,
     val status: String? = "Open", // Make this nullable to fix the compilation error
     val imageUri: Uri? = null,

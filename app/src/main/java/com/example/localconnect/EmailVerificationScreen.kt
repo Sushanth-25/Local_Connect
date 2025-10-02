@@ -45,7 +45,7 @@ fun EmailVerificationScreen(
     // Auto-check verification status periodically
     LaunchedEffect(Unit) {
         while (true) {
-            delay(3000) // Check every 3 seconds
+            delay(5000) // Check every 3 seconds
             viewModel.checkEmailVerification()
         }
     }

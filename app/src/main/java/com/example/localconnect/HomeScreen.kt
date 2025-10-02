@@ -68,7 +68,7 @@ val dummyCommunityPosts = listOf(
     CommunityPost("4", "Lost Golden Retriever", "Missing since yesterday evening, answers to 'Buddy'", "Lost & Found", PostType.LOST_FOUND, "Active", 12, 3, 65, 0, "1 day ago", "Elm Street", "Sarah Johnson", true, true),
     CommunityPost("5", "Free Yoga Classes Starting", "Free community yoga classes every morning at 6 AM", "Health", PostType.GENERAL, "Active", 35, 15, 150, 0, "2 days ago", "Community Center", "Dr. Patel", true),
     CommunityPost("6", "Broken Street Light", "Dark area unsafe for evening walks, needs urgent attention", "Infrastructure", PostType.ISSUE, "Reported", 22, 6, 95, 7, "3 days ago", "Oak Avenue", "Lisa Chen", true),
-    CommunityPost("7", "Blood Donation Drive", "Urgent need for blood donations at city hospital", "Health", PostType.GENERAL, "Urgent", 50, 20, 300, 9, "5 hours ago", "City Hospital", "Red Cross Society", false), // Non-local
+    CommunityPost("7", "Blood Donation Drive", "Urgent need for blood donations at city hospital", "Health", PostType.GENERAL, "Urgent", 50, 20, 300, 9, "5 hours ago", "City Hospital", "Red Cross Society", true), // Non-local
     CommunityPost("8", "Children's Art Exhibition", "Display of local children's artwork this weekend", "Culture", PostType.CELEBRATION, "This Weekend", 28, 9, 110, 0, "1 day ago", "Library Hall", "Art Teacher Mary", true),
     CommunityPost("9", "Water Leakage Issue", "Continuous water leakage on residential street", "Water Supply", PostType.ISSUE, "Open", 15, 4, 75, 5, "8 hours ago", "Residential Area", "Community Member", true),
     CommunityPost("10", "Cricket Tournament", "Annual community cricket tournament registration open", "Sports", PostType.CELEBRATION, "Registration Open", 42, 18, 180, 0, "12 hours ago", "Sports Ground", "Sports Committee", true)
@@ -919,4 +919,3 @@ fun IssueCard(issue: Issue) {
         }
     }
 }
-

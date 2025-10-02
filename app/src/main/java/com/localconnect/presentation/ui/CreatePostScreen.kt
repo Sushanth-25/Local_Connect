@@ -499,6 +499,20 @@ fun CreatePostScreen(
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Post to local community only")
+                        Switch(
+                            checked = uiState.isLocalOnly,
+                            onCheckedChange = viewModel::onLocalOnlyToggle
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedButton(
