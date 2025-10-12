@@ -1,4 +1,4 @@
-package com.localconnect.util
+package com.example.localconnect.util
 
 import android.content.Context
 import android.content.SharedPreferences

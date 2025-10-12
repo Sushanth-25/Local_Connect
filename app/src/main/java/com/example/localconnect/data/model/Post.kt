@@ -1,4 +1,4 @@
-package com.localconnect.data.model
+package com.example.localconnect.data.model
 
 import com.google.firebase.firestore.PropertyName
 import com.google.firebase.firestore.ServerTimestamp

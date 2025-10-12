@@ -7,7 +7,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
-import androidx.core.splashscreen.SplashScreen
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -16,8 +15,8 @@ import com.example.localconnect.ui.theme.LocalConnectTheme
 import com.google.firebase.auth.FirebaseAuth
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.ui.platform.LocalContext
-import com.localconnect.presentation.ui.CreatePostScreen
-import com.localconnect.util.PermissionUtils
+import com.example.localconnect.presentation.ui.CreatePostScreen
+import com.example.localconnect.util.PermissionUtils
 
 class MainActivity : ComponentActivity() {
     private var isAuthFinished = false

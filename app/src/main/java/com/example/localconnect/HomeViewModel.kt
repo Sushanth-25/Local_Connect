@@ -3,10 +3,10 @@ package com.example.localconnect
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.localconnect.data.repository.FirebasePostRepository
-import com.localconnect.data.model.Post
-import com.localconnect.util.LocationUtils
-import com.localconnect.util.UserLocationManager
+import com.example.localconnect.data.repository.FirebasePostRepository
+import com.example.localconnect.data.model.Post
+import com.example.localconnect.util.LocationUtils
+import com.example.localconnect.util.UserLocationManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

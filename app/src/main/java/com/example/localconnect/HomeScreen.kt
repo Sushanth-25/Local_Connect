@@ -14,7 +14,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.*
@@ -22,7 +21,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -31,9 +29,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.localconnect.data.model.Post
+import com.example.localconnect.util.UserLocationManager
+import com.example.localconnect.data.model.Post
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 enum class PostType {
     ISSUE, CELEBRATION, GENERAL, LOST_FOUND
@@ -195,7 +193,7 @@ fun HomeScreen(navController: NavHostController) {
             0 -> homeViewModel.loadPosts(context) // Explore - all posts with location filtering
             1 -> {
                 // Local Community tab - check if user has location first
-                val userLocation = com.localconnect.util.UserLocationManager.getUserLocation(context)
+                val userLocation = UserLocationManager.getUserLocation(context)
                 if (userLocation == null) {
                     // No user location saved, request permission
                     val hasLocationPermission = androidx.core.content.ContextCompat.checkSelfPermission(

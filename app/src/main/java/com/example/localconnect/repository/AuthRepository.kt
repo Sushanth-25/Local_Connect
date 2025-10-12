@@ -1,6 +1,6 @@
-package com.localconnect.domain.repository
+package com.example.localconnect.repository
 
-import com.localconnect.data.model.User
+import com.example.localconnect.data.model.User
 
 interface AuthRepository {
     suspend fun register(name: String, email: String, password: String, bio: String, profileImage: String): Result<User>

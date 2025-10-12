@@ -1,11 +1,11 @@
-package com.localconnect.presentation.viewmodel
+package com.example.localconnect.presentation.viewmodel
 
 import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.example.localconnect.data.repository.FirebasePostRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.storage.FirebaseStorage
-import com.localconnect.data.repository.FirebasePostRepository
 
 class CreatePostViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")

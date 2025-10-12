@@ -1,7 +1,8 @@
-package com.localconnect.data.repository
+package com.example.localconnect.data.repository
 
-import com.localconnect.data.model.Post
-import com.localconnect.domain.repository.PostRepository
+import com.example.localconnect.data.model.Post
+import com.example.localconnect.repository.PostRepository
+import com.example.localconnect.util.LocationUtils
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
@@ -262,7 +263,7 @@ class FirebasePostRepository : PostRepository {
 
             // Filter by location if user coordinates are available
             val filteredPosts = if (userLat != null && userLon != null) {
-                val result = com.localconnect.util.LocationUtils.filterPostsByLocation(posts, userLat, userLon)
+                val result = LocationUtils.filterPostsByLocation(posts, userLat, userLon)
                 println("FirebasePostRepository: After location filtering: ${result.size} posts")
                 result
             } else {
@@ -293,11 +294,11 @@ class FirebasePostRepository : PostRepository {
                 if (post.isLocalOnly) return@filter true
 
                 // For community posts, check distance using location string
-                val postLat = com.localconnect.util.LocationUtils.parseLatitudeFromLocation(post.location)
-                val postLon = com.localconnect.util.LocationUtils.parseLongitudeFromLocation(post.location)
+                val postLat = LocationUtils.parseLatitudeFromLocation(post.location)
+                val postLon = LocationUtils.parseLongitudeFromLocation(post.location)
 
                 if (postLat != null && postLon != null) {
-                    val distance = com.localconnect.util.LocationUtils.calculateDistance(
+                    val distance = LocationUtils.calculateDistance(
                         userLat, userLon, postLat, postLon
                     )
                     distance <= radiusKm

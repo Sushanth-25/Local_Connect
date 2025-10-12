@@ -1,7 +1,7 @@
-package com.localconnect.data.repository
+package com.example.localconnect.data.repository
 
-import com.localconnect.data.model.User
-import com.localconnect.domain.repository.AuthRepository
+import com.example.localconnect.data.model.User
+import com.example.localconnect.repository.AuthRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
@@ -48,7 +48,11 @@ class FirebaseAuthRepository : AuthRepository {
     override fun getCurrentUser(): User? {
         val firebaseUser = auth.currentUser ?: return null
         // This is a stub; in ViewModel, fetch from Firestore if needed
-        return User(userId = firebaseUser.uid, name = firebaseUser.displayName ?: "", email = firebaseUser.email ?: "")
+        return User(
+            userId = firebaseUser.uid,
+            name = firebaseUser.displayName ?: "",
+            email = firebaseUser.email ?: ""
+        )
     }
 }
 

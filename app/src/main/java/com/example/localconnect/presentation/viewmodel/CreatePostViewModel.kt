@@ -1,11 +1,11 @@
-package com.localconnect.presentation.viewmodel
+package com.example.localconnect.presentation.viewmodel
 
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.localconnect.data.model.Post
-import com.localconnect.data.model.PostType
-import com.localconnect.domain.repository.PostRepository
+import com.example.localconnect.data.model.Post
+import com.example.localconnect.data.model.PostType
+import com.example.localconnect.repository.PostRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.flow.MutableStateFlow

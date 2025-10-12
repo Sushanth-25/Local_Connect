@@ -1,11 +1,10 @@
-package com.localconnect.data.repository
+package com.example.localconnect.data.repository
 
+import com.example.localconnect.repository.StorageRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageMetadata
-import com.localconnect.domain.repository.StorageRepository
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.tasks.await
 import java.util.UUID
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException

@@ -1,4 +1,4 @@
-package com.localconnect.data.model
+package com.example.localconnect.data.model
 
 enum class PostCategory(val displayName: String) {
     GENERAL("General"),

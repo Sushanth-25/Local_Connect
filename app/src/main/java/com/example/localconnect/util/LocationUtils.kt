@@ -1,5 +1,6 @@
-package com.localconnect.util
+package com.example.localconnect.util
 
+import com.example.localconnect.data.model.Post
 import kotlin.math.*
 
 object LocationUtils {
@@ -84,10 +85,10 @@ object LocationUtils {
      * Filter posts based on user's location and community radius
      */
     fun filterPostsByLocation(
-        posts: List<com.localconnect.data.model.Post>,
+        posts: List<Post>,
         userLat: Double?,
         userLon: Double?
-    ): List<com.localconnect.data.model.Post> {
+    ): List<Post> {
         if (userLat == null || userLon == null) {
             return posts // Return all posts if user location is not available
         }

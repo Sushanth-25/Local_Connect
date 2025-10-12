@@ -1,6 +1,6 @@
-package com.localconnect.domain.repository
+package com.example.localconnect.repository
 
-import com.localconnect.data.model.Post
+import com.example.localconnect.data.model.Post
 import kotlinx.coroutines.flow.Flow
 
 interface PostRepository {

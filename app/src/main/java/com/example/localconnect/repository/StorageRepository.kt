@@ -1,4 +1,4 @@
-package com.localconnect.domain.repository
+package com.example.localconnect.repository
 
 interface StorageRepository {
     /**

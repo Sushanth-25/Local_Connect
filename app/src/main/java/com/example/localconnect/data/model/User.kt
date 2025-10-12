@@ -1,4 +1,4 @@
-package com.localconnect.data.model
+package com.example.localconnect.data.model
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass

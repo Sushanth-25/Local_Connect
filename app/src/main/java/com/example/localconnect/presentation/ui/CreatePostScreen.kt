@@ -1,4 +1,4 @@
-package com.localconnect.presentation.ui
+package com.example.localconnect.presentation.ui
 
 import android.Manifest
 import android.app.Application
@@ -24,11 +24,11 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.localconnect.data.model.PostType
-import com.localconnect.presentation.viewmodel.CreatePostViewModel
-import com.localconnect.presentation.viewmodel.CreatePostViewModelFactory
-import com.localconnect.util.PermissionUtils
-import com.localconnect.util.UserLocationManager
+import com.example.localconnect.data.model.PostType
+import com.example.localconnect.presentation.viewmodel.CreatePostViewModel
+import com.example.localconnect.presentation.viewmodel.CreatePostViewModelFactory
+import com.example.localconnect.util.PermissionUtils
+import com.example.localconnect.util.UserLocationManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import android.content.Context
