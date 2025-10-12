@@ -50,6 +50,13 @@ object PermissionUtils {
             .apply()
     }
 
+    fun markCameraPermissionAsked(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putBoolean(CAMERA_ASKED, true)
+            .apply()
+    }
+
     // Runtime Permission Checks
     fun hasLocationPermission(context: Context): Boolean {
         return ContextCompat.checkSelfPermission(

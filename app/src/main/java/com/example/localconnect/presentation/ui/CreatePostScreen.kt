@@ -77,10 +77,12 @@ fun CreatePostScreen(
     ) { isGranted: Boolean ->
         PermissionUtils.saveCameraPermissionResult(context, isGranted)
         if (isGranted) {
+            // Permission granted, launch camera
             cameraLauncher.launch(null)
         } else {
+            // Permission denied, show appropriate message
             scope.launch {
-                snackbarHostState.showSnackbar("Camera permission denied")
+                snackbarHostState.showSnackbar("Camera permission is required to take photos")
             }
         }
     }
@@ -517,13 +519,13 @@ fun CreatePostScreen(
                     ) {
                         OutlinedButton(
                             onClick = {
-                                val hasCameraPermission = ContextCompat.checkSelfPermission(
-                                    context, Manifest.permission.CAMERA
-                                ) == PackageManager.PERMISSION_GRANTED
+                                // Check runtime camera permission directly
+                                val hasCameraPermission = PermissionUtils.hasCameraPermission(context)
 
                                 if (hasCameraPermission) {
                                     cameraLauncher.launch(null)
                                 } else {
+                                    // Request camera permission
                                     cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                                 }
                             },
