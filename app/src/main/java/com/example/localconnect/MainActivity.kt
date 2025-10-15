@@ -2,6 +2,7 @@
 package com.example.localconnect
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -35,6 +36,9 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+
+        // Show welcome toast every time the app is opened
+        Toast.makeText(this, "Welcome to LocalConnect!", Toast.LENGTH_SHORT).show()
     }
 }
 

@@ -18,7 +18,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
-fun RealPostCard(post: Post) {
+fun RealPostCard(post: Post, modifier: Any) {
     val postType = PostType.fromString(post.type)
 
     Card(

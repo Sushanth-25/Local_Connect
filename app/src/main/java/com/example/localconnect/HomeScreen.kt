@@ -4,12 +4,15 @@ import android.Manifest
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -22,8 +25,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -187,6 +192,7 @@ fun HomeScreen(navController: NavHostController) {
         }
     }
 
+
     // Load posts based on selected tab and handle location permission
     LaunchedEffect(selectedTab) {
         when (selectedTab) {
@@ -199,9 +205,9 @@ fun HomeScreen(navController: NavHostController) {
                     val hasLocationPermission = androidx.core.content.ContextCompat.checkSelfPermission(
                         context, android.Manifest.permission.ACCESS_FINE_LOCATION
                     ) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
-                    androidx.core.content.ContextCompat.checkSelfPermission(
-                        context, android.Manifest.permission.ACCESS_COARSE_LOCATION
-                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                            androidx.core.content.ContextCompat.checkSelfPermission(
+                                context, android.Manifest.permission.ACCESS_COARSE_LOCATION
+                            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
                     if (hasLocationPermission) {
                         // Has permission but no saved location, get current location
@@ -230,10 +236,6 @@ fun HomeScreen(navController: NavHostController) {
             0 -> homeViewModel.loadPosts(context)
             1 -> homeViewModel.loadCommunityPosts(context)
         }
-    }
-
-    LaunchedEffect(Unit) {
-        Toast.makeText(context, "Welcome to LocalConnect!", Toast.LENGTH_SHORT).show()
     }
 
     // Dialog state
@@ -342,13 +344,42 @@ fun HomeScreen(navController: NavHostController) {
             }
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { navController.navigate("create_post") },
-                containerColor = MaterialTheme.colorScheme.primary
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(end = 20.dp, bottom = 20.dp),
+                contentAlignment = Alignment.BottomEnd
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Create Post")
+                FloatingActionButton(
+                    onClick = { navController.navigate("create_post") },
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant, // soft background tone
+                    elevation = FloatingActionButtonDefaults.elevation(3.dp),
+                    shape = RoundedCornerShape(12.dp) // smooth corners to match UI
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Add Post",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Create Post",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
             }
         }
+
+
+
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -450,6 +481,11 @@ fun HomeScreen(navController: NavHostController) {
                             localOnly = selectedTab == 1
                         )
 
+                        val listState = rememberLazyListState()
+                        val visibleItemsInfo by remember {
+                            derivedStateOf { listState.layoutInfo.visibleItemsInfo }
+                        }
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -509,11 +545,25 @@ fun HomeScreen(navController: NavHostController) {
                             }
                         } else {
                             LazyColumn(
+                                state = listState,
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.fillMaxSize()
                             ) {
-                                items(filteredRealPosts) { post ->
-                                    RealPostCard(post)
+                                itemsIndexed(filteredRealPosts) { index, post ->
+                                    val itemInfo = visibleItemsInfo.find { it.index == index }
+                                    val fadeDistance = 200f // px, adjust for more/less fade
+                                    val alpha = if (itemInfo != null) {
+                                        val itemTop = itemInfo.offset.toFloat()
+                                        when {
+                                            itemTop >= 0f -> 1f // fully visible
+                                            itemTop > -fadeDistance -> 1f + (itemTop / fadeDistance) // fade out as it scrolls up
+                                            else -> 0f // fully transparent
+                                        }
+                                    } else 1f
+                                    RealPostCard(
+                                        post,
+                                        modifier = Modifier.graphicsLayer(alpha = alpha.coerceIn(0f, 1f))
+                                    )
                                 }
                             }
                         }
