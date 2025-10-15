@@ -8,7 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,8 +25,15 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Polygon
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
+import kotlin.math.*
+
+@Composable
+fun rememberMapView(context: Context): MapView {
+    return remember { MapView(context) }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,157 +43,88 @@ fun MapScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var selectedLocation by remember { mutableStateOf<GeoPoint?>(null) }
-    var mapView by remember { mutableStateOf<MapView?>(null) }
+    val mapView = rememberMapView(context)
     var myLocationOverlay by remember { mutableStateOf<MyLocationNewOverlay?>(null) }
-    var isLocationEnabled by remember { mutableStateOf(false) }
     var currentLocation by remember { mutableStateOf<GeoPoint?>(null) }
 
-    // Permission launcher for map-specific permissions
+    // Permission launcher
     val mapPermissionLauncher = rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         PermissionUtils.handleMapPermissionResult(context, permissions)
-        val locationGranted = permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] ?: false ||
-                             permissions[android.Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
-
-        if (locationGranted) {
-            // Re-initialize location overlay after permission granted
-            mapView?.let { map ->
-                initializeLocationOverlay(context, map) { overlay ->
-                    myLocationOverlay = overlay
-                    isLocationEnabled = true
-                }
+        val granted = permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                permissions[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            initializeLocationOverlay(context, mapView) { overlay ->
+                myLocationOverlay = overlay
             }
-            Toast.makeText(context, "Location permission granted! GPS enabled.", Toast.LENGTH_SHORT).show()
         } else {
-            Toast.makeText(context, "Location permission denied. GPS features disabled.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Location permission denied.", Toast.LENGTH_SHORT).show()
         }
     }
 
-    // Initialize OSMDroid configuration
+    // OSMDroid setup
     LaunchedEffect(Unit) {
-        Configuration.getInstance().load(context, context.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
+        Configuration.getInstance().load(
+            context,
+            context.getSharedPreferences("osmdroid", Context.MODE_PRIVATE)
+        )
         Configuration.getInstance().userAgentValue = context.packageName
 
-        // Request map permissions if not already granted
         if (!PermissionUtils.hasMapPermissions(context)) {
             mapPermissionLauncher.launch(PermissionUtils.getMapPermissions())
+        } else {
+            initializeLocationOverlay(context, mapView) { overlay ->
+                myLocationOverlay = overlay
+            }
         }
     }
 
-    Column(
-        modifier = modifier.fillMaxSize()
-    ) {
-        // Top App Bar
+    Column(modifier = modifier.fillMaxSize()) {
         TopAppBar(
-            title = { Text(if (isPicker) "Select Location" else "Map") },
+            title = { Text("Nearby Map (3 km radius)") },
             navigationIcon = {
                 IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                }
-            },
-            actions = {
-                if (isPicker && selectedLocation != null) {
-                    TextButton(
-                        onClick = {
-                            selectedLocation?.let { location ->
-                                navController.previousBackStackEntry?.savedStateHandle?.set(
-                                    "selected_location",
-                                    "${location.latitude}, ${location.longitude}"
-                                )
-                                navController.popBackStack()
-                            }
-                        }
-                    ) {
-                        Text("Confirm", color = MaterialTheme.colorScheme.primary)
-                    }
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                 }
             }
         )
 
-        // Show selected location info if in picker mode
-        if (isPicker && selectedLocation != null) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-            ) {
-                Text(
-                    text = "Selected: ${String.format("%.6f", selectedLocation!!.latitude)}, ${String.format("%.6f", selectedLocation!!.longitude)}",
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-        }
+        Box(modifier = Modifier.fillMaxSize()) {
+            AndroidView(
+                factory = { mapView },
+                modifier = Modifier.fillMaxSize()
+            ) { mv ->
+                mv.setTileSource(TileSourceFactory.MAPNIK)
+                mv.setMultiTouchControls(true)
+                mv.controller.setZoom(15.0)
 
-        // Map View with floating GPS button
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-        ) {
-            OSMMap(
-                modifier = Modifier.fillMaxSize(),
-                onLocationSelected = { lat, lng ->
-                    if (isPicker) {
-                        selectedLocation = GeoPoint(lat, lng)
+                // Center on Bengaluru temporarily until location fix
+                mv.controller.setCenter(GeoPoint(12.9716, 77.5946))
+
+                if (PermissionUtils.hasMapPermissions(context)) {
+                    initializeLocationOverlay(context, mv) { overlay ->
+                        myLocationOverlay = overlay
                     }
-                },
-                onMapViewCreated = { createdMapView, createdMyLocationOverlay ->
-                    mapView = createdMapView
-                    myLocationOverlay = createdMyLocationOverlay
-                    isLocationEnabled = createdMyLocationOverlay != null
-                },
-                onLocationUpdate = { location ->
-                    currentLocation = location
-                },
-                isPicker = isPicker
-            )
+                }
+            }
 
-            // Floating GPS button (bottom right like Google Maps)
+            // Floating button for location
             FloatingActionButton(
                 onClick = {
-                    when {
-                        !PermissionUtils.hasMapPermissions(context) -> {
-                            mapPermissionLauncher.launch(PermissionUtils.getMapPermissions())
-                        }
-                        !isLocationServiceEnabled(context) -> {
-                            Toast.makeText(context, "Please enable GPS/Location services", Toast.LENGTH_LONG).show()
-                        }
-                        myLocationOverlay == null -> {
-                            mapView?.let { map ->
-                                initializeLocationOverlay(context, map) { overlay ->
-                                    myLocationOverlay = overlay
-                                    isLocationEnabled = true
-                                }
-                            }
-                        }
-                        else -> {
-                            // Enable location and animate to current position
-                            myLocationOverlay?.let { overlay ->
-                                overlay.enableMyLocation()
-                                overlay.enableFollowLocation()
-
-                                // Try to get current location and animate to it
-                                overlay.myLocation?.let { location ->
-                                    val geoPoint = GeoPoint(location.latitude, location.longitude)
-                                    mapView?.controller?.animateTo(geoPoint)
-                                    currentLocation = geoPoint
-                                    Toast.makeText(context, "Centered on your location", Toast.LENGTH_SHORT).show()
-                                } ?: run {
-                                    // If no location yet, try to get it
-                                    overlay.runOnFirstFix {
-                                        overlay.myLocation?.let { location ->
-                                            val geoPoint = GeoPoint(location.latitude, location.longitude)
-                                            mapView?.post {
-                                                mapView?.controller?.animateTo(geoPoint)
-                                                currentLocation = geoPoint
-                                            }
-                                        }
-                                    }
-                                    Toast.makeText(context, "Getting your location...", Toast.LENGTH_SHORT).show()
+                    if (!PermissionUtils.hasMapPermissions(context)) {
+                        mapPermissionLauncher.launch(PermissionUtils.getMapPermissions())
+                    } else {
+                        myLocationOverlay?.enableMyLocation()
+                        myLocationOverlay?.runOnFirstFix {
+                            val loc = myLocationOverlay?.myLocation
+                            if (loc != null) {
+                                val geo = GeoPoint(loc.latitude, loc.longitude)
+                                mapView.post {
+                                    mapView.controller.animateTo(geo)
+                                    currentLocation = geo
+                                    showRadius(mapView, geo, 3000.0)
+                                    Toast.makeText(context, "Showing 3 km radius", Toast.LENGTH_SHORT).show()
                                 }
                             }
                         }
@@ -202,219 +140,97 @@ fun MapScreen(
             ) {
                 Icon(
                     Icons.Default.MyLocation,
-                    contentDescription = "My Location",
-                    tint = if (isLocationEnabled && currentLocation != null)
-                           MaterialTheme.colorScheme.primary
-                           else MaterialTheme.colorScheme.onSurfaceVariant
+                    contentDescription = "My Location"
                 )
-            }
-
-            // Selected location info card
-            selectedLocation?.let { location ->
-                Card(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                        .padding(bottom = 80.dp), // Extra padding to avoid GPS button
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
-                    ) {
-                        Text(
-                            text = "Selected Location",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Latitude: ${String.format("%.6f", location.latitude)}",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Text(
-                            text = "Longitude: ${String.format("%.6f", location.longitude)}",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(
-                                onClick = {
-                                    selectedLocation?.let { location ->
-                                        navController.previousBackStackEntry?.savedStateHandle?.set(
-                                            "selected_location",
-                                            "Lat: ${"%.4f".format(location.latitude)}, Lon: ${"%.4f".format(location.longitude)}"
-                                        )
-                                        navController.previousBackStackEntry?.savedStateHandle?.set(
-                                            "selected_latitude",
-                                            location.latitude
-                                        )
-                                        navController.previousBackStackEntry?.savedStateHandle?.set(
-                                            "selected_longitude",
-                                            location.longitude
-                                        )
-                                    }
-                                    navController.popBackStack()
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Use This Location")
-                            }
-
-                            OutlinedButton(
-                                onClick = {
-                                    selectedLocation = null
-                                    // Clear map markers (except location overlay)
-                                    mapView?.overlays?.removeIf { it is Marker }
-                                    mapView?.invalidate()
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Clear")
-                            }
-                        }
-                    }
-                }
             }
         }
     }
 }
 
-// Helper function to check if location services are enabled
-private fun isLocationServiceEnabled(context: Context): Boolean {
-    val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-    return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
-           locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+// --- Helper: Draw a 3 km radius circle ---
+private fun showRadius(mapView: MapView, center: GeoPoint, radiusMeters: Double) {
+    // Remove old circles
+    mapView.overlays.removeIf { it is Polygon }
+
+    val earthRadius = 6378137.0
+    val lat = Math.toRadians(center.latitude)
+    val lon = Math.toRadians(center.longitude)
+
+    val points = mutableListOf<GeoPoint>()
+    for (i in 0..360 step 5) {
+        val angle = Math.toRadians(i.toDouble())
+        val dx = radiusMeters * cos(angle) / earthRadius
+        val dy = radiusMeters * sin(angle) / (earthRadius * cos(lat))
+        val latPoint = center.latitude + Math.toDegrees(dy)
+        val lonPoint = center.longitude + Math.toDegrees(dx)
+        points.add(GeoPoint(latPoint, lonPoint))
+    }
+
+    val circle = Polygon(mapView).apply {
+        outlinePaint.color = android.graphics.Color.BLUE
+        outlinePaint.strokeWidth = 4f
+        fillPaint.color = android.graphics.Color.argb(40, 0, 0, 255)
+        points.addAll(points)
+    }
+
+    mapView.overlays.add(circle)
+    mapView.invalidate()
 }
 
-// Helper function to initialize location overlay
+// --- Location overlay setup ---
 private fun initializeLocationOverlay(
     context: Context,
     mapView: MapView,
     onOverlayCreated: (MyLocationNewOverlay) -> Unit
 ) {
-    if (PermissionUtils.hasMapPermissions(context)) {
-        // Create a more accurate location provider
-        val locationProvider = GpsMyLocationProvider(context).apply {
-            // Set location update criteria for better accuracy
-            locationUpdateMinTime = 1000L // Update every 1 second
-            locationUpdateMinDistance = 1.0f // Update every 1 meter
-        }
-
-        val myLocationOverlay = MyLocationNewOverlay(locationProvider, mapView).apply {
-            enableMyLocation()
-            disableFollowLocation() // Don't follow initially
-
-            // Wait for location fix before following
-            runOnFirstFix {
-                myLocation?.let { location ->
-                    mapView.post {
-                        enableFollowLocation()
-                        val geoPoint = GeoPoint(location.latitude, location.longitude)
-                        mapView.controller.animateTo(geoPoint)
-                    }
-                }
-            }
-        }
-
-        // Remove any existing location overlay
-        mapView.overlays.removeIf { it is MyLocationNewOverlay }
-        mapView.overlays.add(myLocationOverlay)
-        mapView.invalidate()
-
-        onOverlayCreated(myLocationOverlay)
+    val locationManager = context.applicationContext.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+    val provider = GpsMyLocationProvider(context).apply {
+        locationUpdateMinTime = 1000L
+        locationUpdateMinDistance = 1f
+        addLocationSource(LocationManager.NETWORK_PROVIDER)
     }
-}
 
-@Composable
-fun OSMMap(
-    modifier: Modifier = Modifier,
-    onLocationSelected: (Double, Double) -> Unit,
-    onMapViewCreated: (MapView, MyLocationNewOverlay?) -> Unit = { _, _ -> },
-    onLocationUpdate: (GeoPoint) -> Unit = {},
-    isPicker: Boolean = false
-) {
-    val context = LocalContext.current
+    val overlay = MyLocationNewOverlay(provider, mapView).apply {
+        enableMyLocation()
+        disableFollowLocation()
+    }
 
-    AndroidView(
-        modifier = modifier.fillMaxSize(),
-        factory = { ctx ->
-            MapView(ctx).apply {
-                setTileSource(TileSourceFactory.MAPNIK)
-                setMultiTouchControls(true)
-                controller.setZoom(15.0)
+    // ✅ Step 1: Try to use last known or emulator location immediately
+    try {
+        val lastKnown = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+            ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
 
-                // Default location: Bangalore
-                val defaultLocation = GeoPoint(12.9716, 77.5946)
-                controller.setCenter(defaultLocation)
+        val initialGeo = if (lastKnown != null) {
+            GeoPoint(lastKnown.latitude, lastKnown.longitude)
+        } else {
+            // fallback: Bengaluru center
+            GeoPoint(12.9716, 77.5946)
+        }
 
-                // Don't add default marker - let only the blue location dot be visible initially
+        mapView.post {
+            mapView.controller.setZoom(16.5)
+            mapView.controller.setCenter(initialGeo)
+            showRadius(mapView, initialGeo, 3000.0) // ✅ Draw 3 km radius immediately
+        }
+    } catch (e: SecurityException) {
+        e.printStackTrace()
+    }
 
-                // Add My Location overlay if permission is available
-                var myLocationOverlay: MyLocationNewOverlay? = null
-                if (PermissionUtils.hasMapPermissions(context)) {
-                    // Use enhanced location provider for better accuracy
-                    val locationProvider = GpsMyLocationProvider(context).apply {
-                        locationUpdateMinTime = 1000L // Update every 1 second
-                        locationUpdateMinDistance = 1.0f // Update every 1 meter
-                    }
-
-                    val mapViewRef = this // Store reference to MapView
-                    myLocationOverlay = MyLocationNewOverlay(locationProvider, this).apply {
-                        enableMyLocation()
-                        disableFollowLocation() // Don't follow initially
-
-                        // Listen for accurate location updates
-                        runOnFirstFix {
-                            myLocation?.let { location ->
-                                val geoPoint = GeoPoint(location.latitude, location.longitude)
-                                mapViewRef.post {
-                                    controller.animateTo(geoPoint)
-                                    onLocationUpdate(geoPoint)
-                                    enableFollowLocation() // Enable following after accurate fix
-                                }
-                            }
-                        }
-                    }
-                    overlays.add(myLocationOverlay)
-                }
-
-                // Add tap listener for location selection
-                setOnTouchListener { _, event ->
-                    if (event.action == MotionEvent.ACTION_UP) {
-                        val proj = projection
-                        val geoPoint = proj.fromPixels(event.x.toInt(), event.y.toInt()) as GeoPoint
-
-                        // Remove existing selection markers (keep location overlay)
-                        overlays.removeIf { it is Marker }
-
-                        // Add new green marker at tapped location
-                        val marker = Marker(this).apply {
-                            position = geoPoint
-                            title = "Selected Location"
-                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                            // Set marker color to green to distinguish from blue location dot
-                        }
-                        overlays.add(marker)
-
-                        // Re-add MyLocation overlay if it exists to keep blue dot on top
-                        myLocationOverlay?.let {
-                            overlays.remove(it)
-                            overlays.add(it)
-                        }
-
-                        invalidate()
-                        onLocationSelected(geoPoint.latitude, geoPoint.longitude)
-                    }
-                    false
-                }
-
-                // Notify about map view creation
-                onMapViewCreated(this, myLocationOverlay)
+    // ✅ Step 2: Once GPS fix arrives, re-center and update circle
+    overlay.runOnFirstFix {
+        val loc = overlay.myLocation
+        if (loc != null) {
+            val geo = GeoPoint(loc.latitude, loc.longitude)
+            mapView.post {
+                mapView.controller.animateTo(geo)
+                showRadius(mapView, geo, 3000.0)
+                Toast.makeText(context, "Updated to your current location", Toast.LENGTH_SHORT).show()
             }
         }
-    )
+    }
+
+    mapView.overlays.removeIf { it is MyLocationNewOverlay }
+    mapView.overlays.add(overlay)
+    mapView.invalidate()
+    onOverlayCreated(overlay)
 }
