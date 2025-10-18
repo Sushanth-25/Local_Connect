@@ -1,7 +1,9 @@
 package com.example.localconnect.data.model
 
+import com.cloudinary.Url
 import com.google.firebase.firestore.PropertyName
 import com.google.firebase.firestore.ServerTimestamp
+import com.google.firebase.firestore.Exclude
 import java.util.Date
 
 data class Post(
@@ -14,9 +16,8 @@ data class Post(
     @PropertyName("status") val status: String? = null,
     @PropertyName("location") val location: String? = null,
     @PropertyName("hasImage") val hasImage: Boolean = false,
-    @PropertyName("imageUrl") val imageUrl: String? = null,
-    @PropertyName("videoUrl") val videoUrl: String? = null,
     @PropertyName("mediaUrls") val mediaUrls: List<String> = emptyList(),
+    @PropertyName("thumbnailUrls") val thumbnailUrls: List<String> = emptyList(),
     @PropertyName("tags") val tags: List<String> = emptyList(),
     @PropertyName("localOnly") val isLocalOnly: Boolean = true,
     @PropertyName("timestamp") val timestamp: Long? = null,
@@ -26,7 +27,13 @@ data class Post(
     @PropertyName("upvotes") val upvotes: Int = 0,
     @PropertyName("views") val views: Int = 0,
     @PropertyName("priority") val priority: Int? = null,
-    @PropertyName("type") val type: String? = null
+    @PropertyName("type") val type: String? = null,
+
+    // Legacy fields - excluded from serialization but kept for deserialization compatibility
+    @Exclude @get:Exclude var imageUrl: String? = null,
+    @Exclude @get:Exclude var videoUrl: String? = null,
+    @Exclude @get:Exclude var latitude: Double? = null,
+    @Exclude @get:Exclude var longitude: Double? = null
 ) {
     // No-argument constructor for Firestore
     constructor() : this(
@@ -39,10 +46,9 @@ data class Post(
         status = null,
         location = null,
         hasImage = false,
-        imageUrl = null,
-        videoUrl = null,
         mediaUrls = emptyList(),
         tags = emptyList(),
+        thumbnailUrls = emptyList(),
         isLocalOnly = false,
         timestamp = null,
         updatedAt = null,
@@ -51,7 +57,11 @@ data class Post(
         upvotes = 0,
         views = 0,
         priority = null,
-        type = null
+        type = null,
+        imageUrl = null,
+        videoUrl = null,
+        latitude = null,
+        longitude = null
     )
 }
 
@@ -62,8 +72,8 @@ enum class PostType(val value: String) {
     EVENT("EVENT");
 
     companion object {
-        fun fromString(value: String?): PostType? {
-            return values().find { it.value == value }
+        fun fromString(value: String?): PostType {
+            return entries.find { it.value == value } ?: POST
         }
     }
 }

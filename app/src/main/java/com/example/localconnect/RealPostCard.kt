@@ -92,7 +92,7 @@ fun RealPostCard(post: Post, modifier: Any) {
                             Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.Gray)
                         }
 
-                        if (post.videoUrl != null || post.mediaUrls.any { it.contains("video", ignoreCase = true) }) {
+                        if (post.mediaUrls.any { it.contains("video", ignoreCase = true) }) {
                             Spacer(modifier = Modifier.width(4.dp))
                             Icon(Icons.Default.VideoLibrary, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.Gray)
                         }

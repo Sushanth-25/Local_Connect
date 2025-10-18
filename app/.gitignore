@@ -10,3 +10,4 @@
 .DS_Store
 *.iml
 *.jks
+/src/main/java/com/example/localconnect/util/CloudinaryManager.kt

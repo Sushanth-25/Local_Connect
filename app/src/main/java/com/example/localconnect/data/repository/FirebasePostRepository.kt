@@ -1,5 +1,6 @@
 package com.example.localconnect.data.repository
 
+import android.util.Log
 import com.example.localconnect.data.model.Post
 import com.example.localconnect.repository.PostRepository
 import com.example.localconnect.util.LocationUtils
@@ -13,6 +14,10 @@ import kotlinx.coroutines.tasks.await
 class FirebasePostRepository : PostRepository {
     private val firestore = FirebaseFirestore.getInstance()
     private val postsCollection = firestore.collection("posts")
+
+    companion object {
+        private const val TAG = "FirebasePostRepository"
+    }
 
     override suspend fun getAllPosts(): List<Post> {
         return try {
@@ -28,12 +33,12 @@ class FirebasePostRepository : PostRepository {
                     )
                 } catch (e: Exception) {
                     // Log the error and skip this document
-                    println("Error parsing post document ${document.id}: ${e.message}")
+                    Log.e(TAG, "Error parsing post document ${document.id}: ${e.message}", e)
                     null
                 }
             }
         } catch (e: Exception) {
-            println("Error fetching posts: ${e.message}")
+            Log.e(TAG, "Error fetching posts: ${e.message}", e)
             emptyList()
         }
     }
@@ -44,7 +49,7 @@ class FirebasePostRepository : PostRepository {
             .limit(limit)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    println("Error observing posts: ${error.message}")
+                    Log.e(TAG, "Error observing posts: ${error.message}", error)
                     trySend(emptyList())
                     return@addSnapshotListener
                 }
@@ -55,7 +60,7 @@ class FirebasePostRepository : PostRepository {
                             postId = document.id
                         )
                     } catch (e: Exception) {
-                        println("Error parsing post document ${document.id}: ${e.message}")
+                        Log.e(TAG, "Error parsing post document ${document.id}: ${e.message}", e)
                         null
                     }
                 } ?: emptyList()
@@ -68,6 +73,10 @@ class FirebasePostRepository : PostRepository {
 
     override suspend fun createPost(post: Post): Result<Unit> {
         return try {
+            Log.d(TAG, "Creating post with ID: ${post.postId}")
+            Log.d(TAG, "Post has ${post.mediaUrls.size} media URLs: ${post.mediaUrls}")
+            Log.d(TAG, "Post has ${post.thumbnailUrls.size} thumbnail URLs: ${post.thumbnailUrls}")
+
             // Ensure all required fields have valid values
             val sanitizedPost = post.copy(
                 timestamp = post.timestamp ?: System.currentTimeMillis(),
@@ -77,17 +86,47 @@ class FirebasePostRepository : PostRepository {
                 description = post.description?.takeIf { it.isNotBlank() },
                 title = post.title?.takeIf { it.isNotBlank() },
                 location = post.location?.takeIf { it.isNotBlank() },
-                imageUrl = post.imageUrl?.takeIf { it.isNotBlank() },
-                videoUrl = post.videoUrl?.takeIf { it.isNotBlank() },
                 status = post.status?.takeIf { it.isNotBlank() },
                 category = post.category?.takeIf { it.isNotBlank() },
-                type = post.type?.takeIf { it.isNotBlank() }
+                type = post.type?.takeIf { it.isNotBlank() },
+                // Handle lists properly - keep them as is since they're already validated
+                mediaUrls = post.mediaUrls,
+                thumbnailUrls = post.thumbnailUrls,
+                tags = post.tags
             )
 
-            postsCollection.document(sanitizedPost.postId).set(sanitizedPost).await()
+            // Convert to Map to ensure proper serialization
+            val postData = hashMapOf(
+                "postId" to sanitizedPost.postId,
+                "userId" to sanitizedPost.userId,
+                "caption" to sanitizedPost.caption,
+                "description" to sanitizedPost.description,
+                "title" to sanitizedPost.title,
+                "category" to sanitizedPost.category,
+                "status" to sanitizedPost.status,
+                "location" to sanitizedPost.location,
+                "hasImage" to sanitizedPost.hasImage,
+                "mediaUrls" to sanitizedPost.mediaUrls,
+                "thumbnailUrls" to sanitizedPost.thumbnailUrls,
+                "tags" to sanitizedPost.tags,
+                "localOnly" to sanitizedPost.isLocalOnly,
+                "timestamp" to sanitizedPost.timestamp,
+                "updatedAt" to sanitizedPost.updatedAt,
+                "likes" to sanitizedPost.likes,
+                "comments" to sanitizedPost.comments,
+                "upvotes" to sanitizedPost.upvotes,
+                "views" to sanitizedPost.views,
+                "priority" to sanitizedPost.priority,
+                "type" to sanitizedPost.type
+            )
+
+            Log.d(TAG, "Saving post data to Firestore: $postData")
+            postsCollection.document(sanitizedPost.postId).set(postData).await()
+            Log.d(TAG, "Post saved successfully to Firestore")
+
             Result.success(Unit)
         } catch (e: Exception) {
-            println("Error creating post: ${e.message}")
+            Log.e(TAG, "Error creating post: ${e.message}", e)
             Result.failure(e)
         }
     }

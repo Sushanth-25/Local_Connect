@@ -2,7 +2,6 @@ package com.example.localconnect
 
 import android.content.Context
 import android.location.LocationManager
-import android.view.MotionEvent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.layout.*
@@ -24,7 +23,6 @@ import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polygon
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
@@ -39,13 +37,12 @@ fun rememberMapView(context: Context): MapView {
 @Composable
 fun MapScreen(
     navController: NavHostController,
-    isPicker: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isPicker: Boolean = false
 ) {
     val context = LocalContext.current
     val mapView = rememberMapView(context)
     var myLocationOverlay by remember { mutableStateOf<MyLocationNewOverlay?>(null) }
-    var currentLocation by remember { mutableStateOf<GeoPoint?>(null) }
 
     // Permission launcher
     val mapPermissionLauncher = rememberLauncherForActivityResult(
@@ -122,8 +119,7 @@ fun MapScreen(
                                 val geo = GeoPoint(loc.latitude, loc.longitude)
                                 mapView.post {
                                     mapView.controller.animateTo(geo)
-                                    currentLocation = geo
-                                    showRadius(mapView, geo, 3000.0)
+                                    showRadius(mapView, geo)
                                     Toast.makeText(context, "Showing 3 km radius", Toast.LENGTH_SHORT).show()
                                 }
                             }
@@ -148,13 +144,13 @@ fun MapScreen(
 }
 
 // --- Helper: Draw a 3 km radius circle ---
-private fun showRadius(mapView: MapView, center: GeoPoint, radiusMeters: Double) {
+private fun showRadius(mapView: MapView, center: GeoPoint) {
     // Remove old circles
     mapView.overlays.removeIf { it is Polygon }
 
+    val radiusMeters = 3000.0
     val earthRadius = 6378137.0
     val lat = Math.toRadians(center.latitude)
-    val lon = Math.toRadians(center.longitude)
 
     val points = mutableListOf<GeoPoint>()
     for (i in 0..360 step 5) {
@@ -170,7 +166,7 @@ private fun showRadius(mapView: MapView, center: GeoPoint, radiusMeters: Double)
         outlinePaint.color = android.graphics.Color.BLUE
         outlinePaint.strokeWidth = 4f
         fillPaint.color = android.graphics.Color.argb(40, 0, 0, 255)
-        points.addAll(points)
+        this.points.addAll(points)
     }
 
     mapView.overlays.add(circle)
@@ -210,7 +206,7 @@ private fun initializeLocationOverlay(
         mapView.post {
             mapView.controller.setZoom(16.5)
             mapView.controller.setCenter(initialGeo)
-            showRadius(mapView, initialGeo, 3000.0) // ✅ Draw 3 km radius immediately
+            showRadius(mapView, initialGeo) // ✅ Draw 3 km radius immediately
         }
     } catch (e: SecurityException) {
         e.printStackTrace()
@@ -223,7 +219,7 @@ private fun initializeLocationOverlay(
             val geo = GeoPoint(loc.latitude, loc.longitude)
             mapView.post {
                 mapView.controller.animateTo(geo)
-                showRadius(mapView, geo, 3000.0)
+                showRadius(mapView, geo)
                 Toast.makeText(context, "Updated to your current location", Toast.LENGTH_SHORT).show()
             }
         }

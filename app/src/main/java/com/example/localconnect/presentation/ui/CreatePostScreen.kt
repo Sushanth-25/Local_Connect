@@ -32,6 +32,9 @@ import com.example.localconnect.util.UserLocationManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import android.content.Context
+import android.graphics.Bitmap
+import java.io.File
+import java.io.FileOutputStream
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,16 +56,31 @@ fun CreatePostScreen(
     // Media launchers
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
-    ) { bitmap ->
-        scope.launch {
-            snackbarHostState.showSnackbar("Photo captured! (Bitmap to URI conversion needed)")
+    ) { bitmap: Bitmap? ->
+        bitmap?.let { bmp ->
+            // Save bitmap to a temp file in cache and add its Uri to the ViewModel
+            try {
+                val file = File.createTempFile("camera_", ".jpg", context.cacheDir)
+                FileOutputStream(file).use { out ->
+                    bmp.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                    out.flush()
+                }
+                val uri = Uri.fromFile(file)
+                // Append to existing list
+                val newList = uiState.imageUris.toMutableList().apply { add(uri) }
+                viewModel.onImageUrisChange(newList)
+                scope.launch { snackbarHostState.showSnackbar("Photo captured") }
+            } catch (e: Exception) {
+                scope.launch { snackbarHostState.showSnackbar("Failed to save photo: ${e.message}") }
+            }
         }
     }
 
     val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        viewModel.onImageUriChange(uri)
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> ->
+        // Replace current selection with picked items
+        viewModel.onImageUrisChange(uris)
     }
 
     val videoLauncher = rememberLauncherForActivityResult(
@@ -555,8 +573,8 @@ fun CreatePostScreen(
                         }
                     }
 
-                    // Show selected media
-                    if (uiState.imageUri != null) {
+                    // Show selected media (multiple images support)
+                    if (uiState.imageUris.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Card(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
@@ -567,9 +585,9 @@ fun CreatePostScreen(
                             ) {
                                 Icon(Icons.Default.Image, contentDescription = null)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Image selected", modifier = Modifier.weight(1f))
-                                IconButton(onClick = { viewModel.onImageUriChange(null) }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Remove")
+                                Text("${uiState.imageUris.size} image(s) selected", modifier = Modifier.weight(1f))
+                                IconButton(onClick = { viewModel.onImageUrisChange(emptyList()) }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear images")
                                 }
                             }
                         }
@@ -598,7 +616,7 @@ fun CreatePostScreen(
 
             // Create Post Button
             Button(
-                onClick = { viewModel.createPost() },
+                onClick = { viewModel.createPost(context) },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !uiState.isLoading
             ) {
@@ -622,11 +640,8 @@ private fun getUserCurrentLocation(
     scope: CoroutineScope
 ) {
     try {
-        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-
         // Check if location services are enabled
-        if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) &&
-            !locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+        if (!PermissionUtils.isLocationServiceEnabled(context)) {
             scope.launch {
                 snackbarHostState.showSnackbar("Please enable location services in settings")
             }
@@ -634,8 +649,7 @@ private fun getUserCurrentLocation(
         }
 
         // Check permissions
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+        if (!PermissionUtils.hasAnyLocationPermission(context)) {
             scope.launch {
                 snackbarHostState.showSnackbar("Location permission required")
             }
@@ -646,9 +660,8 @@ private fun getUserCurrentLocation(
             snackbarHostState.showSnackbar("Getting current location...")
         }
 
-        // Get last known location first (faster)
-        val lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-            ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+        // Get last known location using consolidated utility function
+        val lastKnownLocation = PermissionUtils.getLastKnownLocation(context)
 
         if (lastKnownLocation != null) {
             val locationString = "${lastKnownLocation.latitude}, ${lastKnownLocation.longitude}"

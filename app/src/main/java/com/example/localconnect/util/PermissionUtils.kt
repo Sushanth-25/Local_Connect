@@ -3,6 +3,8 @@ package com.example.localconnect.util
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationManager
 import androidx.core.content.ContextCompat
 
 object PermissionUtils {
@@ -50,13 +52,6 @@ object PermissionUtils {
             .apply()
     }
 
-    fun markCameraPermissionAsked(context: Context) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit()
-            .putBoolean(CAMERA_ASKED, true)
-            .apply()
-    }
-
     // Runtime Permission Checks
     fun hasLocationPermission(context: Context): Boolean {
         return ContextCompat.checkSelfPermission(
@@ -79,13 +74,14 @@ object PermissionUtils {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
-    // Combined permission checks for different features
-    fun hasMapPermissions(context: Context): Boolean {
+    // Combined permission checks
+    fun hasAnyLocationPermission(context: Context): Boolean {
         return hasLocationPermission(context) || hasCoarseLocationPermission(context)
     }
 
-    fun hasPostCreationPermissions(context: Context): Boolean {
-        return hasCameraPermission(context) && hasLocationPermission(context)
+    // Map-specific permission checks (alias for location permissions)
+    fun hasMapPermissions(context: Context): Boolean {
+        return hasAnyLocationPermission(context)
     }
 
     // Get required permissions arrays
@@ -96,18 +92,9 @@ object PermissionUtils {
         )
     }
 
-    fun getPostCreationPermissions(): Array<String> {
-        return arrayOf(
-            Manifest.permission.CAMERA,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        )
-    }
-
+    // Map permissions (same as location permissions)
     fun getMapPermissions(): Array<String> {
-        return arrayOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        )
+        return getLocationPermissions()
     }
 
     // Batch permission result handling
@@ -119,17 +106,42 @@ object PermissionUtils {
         saveLocationPermissionResult(context, anyLocationGranted)
     }
 
+    // Map permission result handler (alias for location permission handler)
+    fun handleMapPermissionResult(context: Context, permissions: Map<String, Boolean>) {
+        handleLocationPermissionResult(context, permissions)
+    }
+
     fun handleCameraPermissionResult(context: Context, permissions: Map<String, Boolean>) {
         val cameraGranted = permissions[Manifest.permission.CAMERA] ?: false
         saveCameraPermissionResult(context, cameraGranted)
     }
 
-    fun handleMapPermissionResult(context: Context, permissions: Map<String, Boolean>) {
-        handleLocationPermissionResult(context, permissions)
+    /**
+     * Get the last known location from the device.
+     * Checks both GPS and Network providers.
+     * Returns null if no location is available or permissions are not granted.
+     */
+    @Suppress("DEPRECATION")
+    fun getLastKnownLocation(context: Context): Location? {
+        if (!hasAnyLocationPermission(context)) {
+            return null
+        }
+
+        return try {
+            val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+        } catch (e: Exception) {
+            null
+        }
     }
 
-    fun handlePostCreationPermissionResult(context: Context, permissions: Map<String, Boolean>) {
-        handleLocationPermissionResult(context, permissions)
-        handleCameraPermissionResult(context, permissions)
+    /**
+     * Check if location services are enabled on the device.
+     */
+    fun isLocationServiceEnabled(context: Context): Boolean {
+        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+                locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
     }
 }

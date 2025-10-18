@@ -1,17 +1,24 @@
 package com.example.localconnect.presentation.viewmodel
 
+import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.localconnect.data.model.Post
 import com.example.localconnect.data.model.PostType
 import com.example.localconnect.repository.PostRepository
+import com.example.localconnect.util.CloudinaryManager
+import com.example.localconnect.util.UriUtils
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.storage.FirebaseStorage
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
+import java.io.File
 import java.util.*
 
 class CreatePostViewModel(
@@ -19,6 +26,10 @@ class CreatePostViewModel(
     private val firebaseAuth: FirebaseAuth,
     private val storage: FirebaseStorage
 ) : ViewModel() {
+
+    companion object {
+        private const val TAG = "CreatePostViewModel"
+    }
 
     private val _uiState = MutableStateFlow(CreatePostUiState())
     val uiState: StateFlow<CreatePostUiState> = _uiState
@@ -70,15 +81,30 @@ class CreatePostViewModel(
         _uiState.value = _uiState.value.copy(status = status)
     }
 
+    // Support multiple images
+    fun onImageUrisChange(uris: List<Uri>) {
+        _uiState.value = _uiState.value.copy(imageUris = uris, hasImage = uris.isNotEmpty())
+    }
+
+    fun removeImageAt(index: Int) {
+        val current = _uiState.value
+        if (index < 0 || index >= current.imageUris.size) return
+        val mutable = current.imageUris.toMutableList()
+        mutable.removeAt(index)
+        _uiState.value = current.copy(imageUris = mutable, hasImage = mutable.isNotEmpty())
+    }
+
+    // Keep existing single image method for backward compatibility
     fun onImageUriChange(uri: Uri?) {
-        _uiState.value = _uiState.value.copy(imageUri = uri, hasImage = uri != null)
+        val uris = if (uri != null) listOf(uri) else emptyList()
+        onImageUrisChange(uris)
     }
 
     fun onVideoUriChange(uri: Uri?) {
         _uiState.value = _uiState.value.copy(videoUri = uri)
     }
 
-    fun createPost() {
+    fun createPost(context: Context) {
         val currentState = _uiState.value
         val currentUser = firebaseAuth.currentUser
 
@@ -116,26 +142,91 @@ class CreatePostViewModel(
 
         viewModelScope.launch {
             try {
+                Log.d(TAG, "Starting post creation process")
+                val currentUser = firebaseAuth.currentUser
+                    ?: throw IllegalStateException("User not authenticated")
+
                 val postId = UUID.randomUUID().toString()
                 val timestamp = System.currentTimeMillis()
 
-                // Upload media if present
+                // Collect all media files (images and videos)
+                val allMediaFiles = mutableListOf<File>()
                 val mediaUrls = mutableListOf<String>()
-                var imageUrl: String? = null
-                var videoUrl: String? = null
+                val thumbnailUrls = mutableListOf<String>()
 
-                currentState.imageUri?.let { uri ->
-                    val uploadedUrl = uploadFile(uri, "images/$postId.jpg")
-                    imageUrl = uploadedUrl
-                    mediaUrls.add(uploadedUrl)
+                try {
+                    // Convert URIs to temp files
+                    withContext(Dispatchers.IO) {
+                        Log.d(TAG, "Converting ${currentState.imageUris.size} image URIs to files")
+                        currentState.imageUris.forEach { uri ->
+                            try {
+                                val file = UriUtils.uriToFile(context, uri)
+                                allMediaFiles.add(file)
+                                Log.d(TAG, "Image file created: ${file.absolutePath}")
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error converting image URI to file: ${e.message}", e)
+                            }
+                        }
+
+                        // Convert video URI to temp file if present
+                        currentState.videoUri?.let { uri ->
+                            try {
+                                val file = UriUtils.uriToFile(context, uri, "video_")
+                                allMediaFiles.add(file)
+                                Log.d(TAG, "Video file created: ${file.absolutePath}")
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error converting video URI to file: ${e.message}", e)
+                            }
+                        }
+                    }
+
+                    // Upload all media files to Cloudinary if any exist
+                    if (allMediaFiles.isNotEmpty()) {
+                        Log.d(TAG, "Uploading ${allMediaFiles.size} files to Cloudinary")
+                        val paths = allMediaFiles.map { it.absolutePath }
+
+                        val uploadResults = withContext(Dispatchers.IO) {
+                            CloudinaryManager.uploadMediaWithThumbnails(paths)
+                        }
+
+                        Log.d(TAG, "Upload completed. Processing ${uploadResults.size} results")
+
+                        // Collect URLs from upload results
+                        uploadResults.forEachIndexed { index, (originalUrl, thumbnailUrl) ->
+                            if (originalUrl != null) {
+                                mediaUrls.add(originalUrl)
+                                Log.d(TAG, "Added media URL $index: $originalUrl")
+                            } else {
+                                Log.w(TAG, "Media URL $index is null")
+                            }
+
+                            if (thumbnailUrl != null) {
+                                thumbnailUrls.add(thumbnailUrl)
+                                Log.d(TAG, "Added thumbnail URL $index: $thumbnailUrl")
+                            }
+                        }
+
+                        Log.d(TAG, "Total media URLs collected: ${mediaUrls.size}")
+                        Log.d(TAG, "Total thumbnail URLs collected: ${thumbnailUrls.size}")
+                    } else {
+                        Log.d(TAG, "No media files to upload")
+                    }
+
+                } finally {
+                    // Clean up temp files
+                    Log.d(TAG, "Cleaning up ${allMediaFiles.size} temp files")
+                    allMediaFiles.forEach { file ->
+                        try {
+                            if (file.delete()) {
+                                Log.d(TAG, "Deleted temp file: ${file.absolutePath}")
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to delete temp file: ${file.absolutePath}", e)
+                        }
+                    }
                 }
 
-                currentState.videoUri?.let { uri ->
-                    val uploadedUrl = uploadFile(uri, "videos/$postId.mp4")
-                    videoUrl = uploadedUrl
-                    mediaUrls.add(uploadedUrl)
-                }
-
+                // Create the post object
                 val post = Post(
                     postId = postId,
                     userId = currentUser.uid,
@@ -145,10 +236,9 @@ class CreatePostViewModel(
                     category = currentState.category,
                     status = if (currentState.postType == PostType.ISSUE) currentState.status else null,
                     location = currentState.location.ifBlank { null },
-                    hasImage = currentState.hasImage,
-                    imageUrl = imageUrl,
-                    videoUrl = videoUrl,
+                    hasImage = mediaUrls.isNotEmpty(),
                     mediaUrls = mediaUrls,
+                    thumbnailUrls = thumbnailUrls,
                     tags = currentState.tags,
                     isLocalOnly = currentState.isLocalOnly,
                     timestamp = timestamp,
@@ -157,26 +247,42 @@ class CreatePostViewModel(
                     type = currentState.postType.value
                 )
 
+                Log.d(TAG, "Created post object with ${post.mediaUrls.size} media URLs and ${post.thumbnailUrls.size} thumbnail URLs")
+                Log.d(TAG, "Media URLs: ${post.mediaUrls}")
+                Log.d(TAG, "Thumbnail URLs: ${post.thumbnailUrls}")
+
+                // Save to Firestore
+                Log.d(TAG, "Saving post to Firestore with ID: $postId")
                 val result = postRepository.createPost(post)
 
                 if (result.isSuccess) {
+                    Log.d(TAG, "Post created successfully")
                     _uiState.value = currentState.copy(
                         isLoading = false,
                         isSuccess = true
                     )
                 } else {
+                    val errorMessage = result.exceptionOrNull()?.message ?: "Failed to create post"
+                    Log.e(TAG, "Failed to create post: $errorMessage")
                     _uiState.value = currentState.copy(
                         isLoading = false,
-                        error = result.exceptionOrNull()?.message ?: "Failed to create post"
+                        error = errorMessage
                     )
                 }
             } catch (e: Exception) {
+                Log.e(TAG, "Error creating post: ${e.message}", e)
                 _uiState.value = currentState.copy(
                     isLoading = false,
                     error = e.message ?: "An error occurred"
                 )
             }
         }
+    }
+
+    // Keep existing createPost() for backward compatibility
+    fun createPost() {
+        // This will fail without context, but we'll keep it to avoid breaking existing calls
+        _uiState.value = _uiState.value.copy(error = "Context required for image upload")
     }
 
     private suspend fun uploadFile(uri: Uri, path: String): String {
@@ -200,11 +306,15 @@ data class CreatePostUiState(
     val location: String = "",
     val isLocalOnly: Boolean = true,
     val priority: Int? = null,
-    val status: String? = "Open", // Make this nullable to fix the compilation error
-    val imageUri: Uri? = null,
+    val status: String? = "Open",
+    // Support multiple images
+    val imageUris: List<Uri> = emptyList(),
     val videoUri: Uri? = null,
     val hasImage: Boolean = false,
     val isLoading: Boolean = false,
     val isSuccess: Boolean = false,
     val error: String? = null
-)
+) {
+    // Backward compatibility property
+    val imageUri: Uri? get() = imageUris.firstOrNull()
+}
