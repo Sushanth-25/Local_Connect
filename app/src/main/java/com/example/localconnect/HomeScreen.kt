@@ -4,7 +4,6 @@ import android.Manifest
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,7 +11,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -21,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,7 +27,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,6 +35,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.localconnect.util.UserLocationManager
 import com.example.localconnect.data.model.Post
 import kotlinx.coroutines.delay
+import com.example.localconnect.presentation.viewmodel.PostDetailViewModel
 
 enum class PostType {
     ISSUE, CELEBRATION, GENERAL, LOST_FOUND
@@ -165,13 +164,13 @@ fun EnhancedFilterBar(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(navController: NavHostController) {
+fun HomeScreen(navController: NavHostController, postDetailViewModel: PostDetailViewModel) {
     val context = LocalContext.current
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
     val tabs = listOf("Explore", "Local Community")
 
-    var selectedCategory by remember { mutableStateOf("All") }
-    var selectedSort by remember { mutableStateOf(SortBy.RECENT) }
+    var selectedCategory by rememberSaveable { mutableStateOf("All") }
+    var selectedSort by rememberSaveable { mutableStateOf(SortBy.RECENT) }
 
     // Connect to Firebase posts via ViewModel
     val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModelFactory())
@@ -481,7 +480,9 @@ fun HomeScreen(navController: NavHostController) {
                             localOnly = selectedTab == 1
                         )
 
-                        val listState = rememberLazyListState()
+                        val listState = rememberSaveable(
+                            saver = androidx.compose.foundation.lazy.LazyListState.Saver
+                        ) { androidx.compose.foundation.lazy.LazyListState() }
                         val visibleItemsInfo by remember {
                             derivedStateOf { listState.layoutInfo.visibleItemsInfo }
                         }
@@ -561,8 +562,14 @@ fun HomeScreen(navController: NavHostController) {
                                         }
                                     } else 1f
                                     RealPostCard(
-                                        post,
-                                        modifier = Modifier.graphicsLayer(alpha = alpha.coerceIn(0f, 1f))
+                                        post = post,
+                                        modifier = Modifier.graphicsLayer(alpha = alpha.coerceIn(0f, 1f)),
+                                        onClick = {
+                                            // Store the selected post in the shared PostDetailViewModel
+                                            postDetailViewModel.setSelectedPost(post)
+                                            // Navigate to detail screen (postId only for route identity)
+                                            navController.navigate("post_detail/${post.postId}")
+                                        }
                                     )
                                 }
                             }

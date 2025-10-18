@@ -17,7 +17,10 @@ import com.google.firebase.auth.FirebaseAuth
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.ui.platform.LocalContext
 import com.example.localconnect.presentation.ui.CreatePostScreen
+import com.example.localconnect.presentation.ui.PostDetailScreen
 import com.example.localconnect.util.PermissionUtils
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.localconnect.presentation.viewmodel.PostDetailViewModel
 
 class MainActivity : ComponentActivity() {
     private var isAuthFinished = false
@@ -47,6 +50,9 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
     val navController: NavHostController = rememberNavController()
     var startDestination by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
+    // Create one PostDetailViewModel instance shared across destinations
+    val postDetailViewModel: PostDetailViewModel = viewModel()
+
     // Authenticate during splash
     LaunchedEffect(Unit) {
         val auth = FirebaseAuth.getInstance()
@@ -148,7 +154,8 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
                 )
             }
             composable("home") {
-                HomeScreen(navController = navController)
+                // Pass arguments positionally to avoid named-arg mismatch
+                HomeScreen(navController, postDetailViewModel)
             }
             composable("profile") {
                 ProfileScreen(navController = navController)
@@ -170,6 +177,22 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
                         navController.popBackStack()
                     }
                 )
+            }
+            composable("post_detail/{postId}") { _ ->
+                val selectedPost by postDetailViewModel.selectedPost.collectAsState()
+                if (selectedPost != null) {
+                    // Clear the selected post only when the screen is disposed to avoid double pop
+                    DisposableEffect(Unit) {
+                        onDispose { postDetailViewModel.clearSelectedPost() }
+                    }
+                    PostDetailScreen(
+                        post = selectedPost!!,
+                        onBackClick = { navController.popBackStack() }
+                    )
+                } else {
+                    // If route opened without setting a post, navigate up once
+                    LaunchedEffect("no_post") { navController.navigateUp() }
+                }
             }
         }
     }

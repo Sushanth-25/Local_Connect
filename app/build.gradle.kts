@@ -102,6 +102,11 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
 
+    // Media3 (ExoPlayer) for video playback
+    implementation("androidx.media3:media3-exoplayer:1.2.0")
+    implementation("androidx.media3:media3-ui:1.2.0")
+    implementation("androidx.media3:media3-common:1.2.0")
+
     // Other
     implementation("com.squareup.retrofit2:retrofit:2.9.0") // For data class style
     implementation("com.squareup.moshi:moshi:1.15.0")
