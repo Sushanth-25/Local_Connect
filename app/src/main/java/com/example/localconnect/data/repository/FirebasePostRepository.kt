@@ -210,6 +210,43 @@ class FirebasePostRepository : PostRepository {
         }
     }
 
+    /**
+     * Delete a post and its associated media from Cloudinary
+     */
+    suspend fun deletePost(postId: String): Result<Unit> {
+        return try {
+            Log.d(TAG, "Deleting post: $postId")
+
+            // First, get the post to retrieve media URLs
+            val postSnapshot = postsCollection.document(postId).get().await()
+            val post = postSnapshot.toObject(Post::class.java)
+
+            if (post != null && post.mediaUrls.isNotEmpty()) {
+                Log.d(TAG, "Post has ${post.mediaUrls.size} media files to delete from Cloudinary")
+
+                // Delete media files from Cloudinary
+                try {
+                    val deletionSuccess = com.example.localconnect.util.CloudinaryManager.deleteMediaFiles(post.mediaUrls)
+                    if (!deletionSuccess) {
+                        Log.w(TAG, "Some media files could not be deleted from Cloudinary")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error deleting media from Cloudinary: ${e.message}", e)
+                    // Continue with post deletion even if Cloudinary deletion fails
+                }
+            }
+
+            // Delete the post document from Firestore
+            postsCollection.document(postId).delete().await()
+            Log.d(TAG, "Post deleted successfully from Firestore")
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting post: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
     suspend fun getPostsByCategory(category: String): List<Post> {
         return try {
             val snapshot = postsCollection
