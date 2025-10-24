@@ -20,6 +20,7 @@ import com.example.localconnect.presentation.ui.CreatePostScreen
 import com.example.localconnect.presentation.ui.PostDetailScreen
 import com.example.localconnect.util.PermissionUtils
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.localconnect.presentation.ui.MyPostsScreen
 import com.example.localconnect.presentation.viewmodel.PostDetailViewModel
 
 class MainActivity : ComponentActivity() {
@@ -193,6 +194,9 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
                     // If route opened without setting a post, navigate up once
                     LaunchedEffect("no_post") { navController.navigateUp() }
                 }
+            }
+            composable("my_posts") {
+                MyPostsScreen(navController = navController)
             }
         }
     }

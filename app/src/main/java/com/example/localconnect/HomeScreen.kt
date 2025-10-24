@@ -328,7 +328,9 @@ fun HomeScreen(navController: NavHostController, postDetailViewModel: PostDetail
                 )
                 NavigationBarItem(
                     selected = false,
-                    onClick = { },
+                    onClick = {
+                        navController.navigate("my_posts")
+                    },
                     icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "My Posts") },
                     label = { Text("My Posts") }
                 )

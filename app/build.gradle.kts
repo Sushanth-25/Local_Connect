@@ -119,4 +119,8 @@ dependencies {
 
     //Cloudinary
     implementation("com.cloudinary:cloudinary-android:2.3.1")
+
+    // Accompanist Pager for image carousel
+    implementation("com.google.accompanist:accompanist-pager:0.32.0")
+    implementation("com.google.accompanist:accompanist-pager-indicators:0.32.0")
 }
