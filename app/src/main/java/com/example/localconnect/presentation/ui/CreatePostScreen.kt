@@ -32,9 +32,11 @@ import com.example.localconnect.util.UserLocationManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import android.content.Context
-import android.graphics.Bitmap
+import androidx.core.content.FileProvider
 import java.io.File
-import java.io.FileOutputStream
+import java.text.SimpleDateFormat
+import java.util.*
+import android.os.Environment
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,26 +55,23 @@ fun CreatePostScreen(
     var showPriorityDropdown by remember { mutableStateOf(false) }
     var showStatusDropdown by remember { mutableStateOf(false) }
 
-    // Media launchers
+    // Camera image file state
+    val cameraImageFile = remember { mutableStateOf<File?>(null) }
+    val cameraImageUri = remember { mutableStateOf<Uri?>(null) }
+
+    // Media launchers - Updated to use TakePicture for full resolution
     val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview()
-    ) { bitmap: Bitmap? ->
-        bitmap?.let { bmp ->
-            // Save bitmap to a temp file in cache and add its Uri to the ViewModel
-            try {
-                val file = File.createTempFile("camera_", ".jpg", context.cacheDir)
-                FileOutputStream(file).use { out ->
-                    bmp.compress(Bitmap.CompressFormat.JPEG, 90, out)
-                    out.flush()
-                }
-                val uri = Uri.fromFile(file)
-                // Append to existing list
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        if (success) {
+            cameraImageUri.value?.let { uri ->
+                // Add the captured image URI to the list
                 val newList = uiState.imageUris.toMutableList().apply { add(uri) }
                 viewModel.onImageUrisChange(newList)
-                scope.launch { snackbarHostState.showSnackbar("Photo captured") }
-            } catch (e: Exception) {
-                scope.launch { snackbarHostState.showSnackbar("Failed to save photo: ${e.message}") }
+                scope.launch { snackbarHostState.showSnackbar("Photo captured successfully") }
             }
+        } else {
+            scope.launch { snackbarHostState.showSnackbar("Failed to capture photo") }
         }
     }
 
@@ -95,8 +94,16 @@ fun CreatePostScreen(
     ) { isGranted: Boolean ->
         PermissionUtils.saveCameraPermissionResult(context, isGranted)
         if (isGranted) {
-            // Permission granted, launch camera
-            cameraLauncher.launch(null)
+            // Permission granted, create image file and launch camera
+            try {
+                val file = createImageFile(context)
+                cameraImageFile.value = file
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+                cameraImageUri.value = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                scope.launch { snackbarHostState.showSnackbar("Failed to open camera: ${e.message}") }
+            }
         } else {
             // Permission denied, show appropriate message
             scope.launch {
@@ -541,7 +548,16 @@ fun CreatePostScreen(
                                 val hasCameraPermission = PermissionUtils.hasCameraPermission(context)
 
                                 if (hasCameraPermission) {
-                                    cameraLauncher.launch(null)
+                                    // Permission already granted, create image file and launch camera
+                                    try {
+                                        val file = createImageFile(context)
+                                        cameraImageFile.value = file
+                                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+                                        cameraImageUri.value = uri
+                                        cameraLauncher.launch(uri)
+                                    } catch (e: Exception) {
+                                        scope.launch { snackbarHostState.showSnackbar("Failed to open camera: ${e.message}") }
+                                    }
                                 } else {
                                     // Request camera permission
                                     cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
@@ -688,4 +704,20 @@ private fun getUserCurrentLocation(
             snackbarHostState.showSnackbar("Error getting location: ${e.message}")
         }
     }
+}
+
+@Throws(Exception::class)
+private fun createImageFile(context: Context): File {
+    // Create an image file name with timestamp
+    val timeStamp: String = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+    val imageFileName = "JPEG_${timeStamp}_"
+
+    // Use cache directory instead of external files for better compatibility
+    val storageDir: File = context.cacheDir
+
+    return File.createTempFile(
+        imageFileName, /* prefix */
+        ".jpg",         /* suffix */
+        storageDir      /* directory */
+    )
 }
