@@ -1,6 +1,7 @@
 package com.example.localconnect
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -23,6 +25,10 @@ import com.example.localconnect.data.model.Post
 import com.example.localconnect.data.model.PostType
 import java.text.SimpleDateFormat
 import java.util.*
+import android.location.Geocoder
+import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Optimized Post Card Component
@@ -41,20 +47,24 @@ fun RealPostCard(
     val hasThumbnail = post.thumbnailUrls.isNotEmpty()
     val hasMedia = post.mediaUrls.isNotEmpty()
 
+    // Choose theme-aware container/content colors for better contrast in dark/light modes
+    val (containerColor, contentColor) = when (postType) {
+        PostType.ISSUE -> {
+            if ((post.priority ?: 0) > 7) MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+            else MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+        }
+        PostType.EVENT -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .then(
-                if (onClick != null) Modifier.clickable(onClick = onClick)
-                else Modifier
-            ),
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(
-            containerColor = when (postType) {
-                PostType.ISSUE -> if ((post.priority ?: 0) > 7) Color(0xFFFFEBEE) else Color(0xFFFFF3E0)
-                PostType.EVENT -> Color(0xFFF3E5F5)
-                else -> Color.White
-            }
+            containerColor = containerColor,
+            contentColor = contentColor
         ),
         shape = RoundedCornerShape(12.dp)
     ) {
@@ -73,7 +83,7 @@ fun RealPostCard(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            // Content - Title and Description
+            // Content - Title and Description (rely on contentColor for good contrast)
             PostCardContent(post = post, postType = postType)
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -111,7 +121,7 @@ private fun PostCardHeader(post: Post, postType: PostType) {
                 Text(
                     text = category,
                     fontSize = 12.sp,
-                    color = Color.Gray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium
                 )
             }
@@ -137,7 +147,7 @@ private fun PostCardHeader(post: Post, postType: PostType) {
         Text(
             text = formatTimeAgo(post.timestamp ?: 0L),
             fontSize = 11.sp,
-            color = Color.Gray
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -195,7 +205,7 @@ private fun ThumbnailImage(thumbnailUrl: String, hasMultipleMedia: Boolean) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color.LightGray),
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator(
@@ -208,13 +218,13 @@ private fun ThumbnailImage(thumbnailUrl: String, hasMultipleMedia: Boolean) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color(0xFFEEEEEE)),
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.BrokenImage,
                         contentDescription = "Failed to load thumbnail",
-                        tint = Color.Gray,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(48.dp)
                     )
                 }
@@ -223,24 +233,28 @@ private fun ThumbnailImage(thumbnailUrl: String, hasMultipleMedia: Boolean) {
 
         // Multiple media indicator
         if (hasMultipleMedia) {
+            val isDark = isSystemInDarkTheme()
+            val overlayColor = if (!isDark) Color.Black.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.12f)
+            val overlayTextColor = MaterialTheme.colorScheme.onPrimary
+
             Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(8.dp)
-                    .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                    .background(overlayColor, RoundedCornerShape(12.dp))
                     .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     imageVector = Icons.Default.Collections,
                     contentDescription = "Multiple media",
-                    tint = Color.White,
+                    tint = overlayTextColor,
                     modifier = Modifier.size(14.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = "Multiple",
-                    color = Color.White,
+                    color = overlayTextColor,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium
                 )
@@ -271,7 +285,6 @@ private fun PostCardContent(post: Post, postType: PostType) {
         Text(
             text = post.description,
             fontSize = 14.sp,
-            color = Color.Gray,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
@@ -292,22 +305,49 @@ private fun PostCardContent(post: Post, postType: PostType) {
 
 @Composable
 private fun PostCardLocation(location: String) {
+    val context = LocalContext.current
+    var resolved by remember(location) { mutableStateOf(location) }
+
+    // Use inline Android Geocoder resolver when the text looks like coordinates
+    val isCoords = remember(location) {
+        val parts = location.split(",")
+        parts.size == 2 && parts[0].trim().toDoubleOrNull() != null && parts[1].trim().toDoubleOrNull() != null
+    }
+
+    LaunchedEffect(isCoords, location) {
+        if (isCoords) {
+            val parts = location.split(",")
+            val lat = parts[0].trim().toDouble()
+            val lon = parts[1].trim().toDouble()
+            resolved = androidGeocodeBestName(context, lat, lon) ?: location
+        }
+    }
+
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
             imageVector = Icons.Default.LocationOn,
             contentDescription = null,
             modifier = Modifier.size(14.dp),
-            tint = Color.Gray
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.width(4.dp))
         Text(
-            text = location,
+            text = resolved,
             fontSize = 12.sp,
-            color = Color.Gray,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
     }
+}
+
+// Android Geocoder-only resolver (suspending)
+private suspend fun androidGeocodeBestName(context: android.content.Context, lat: Double, lon: Double): String? = withContext(Dispatchers.IO) {
+    try {
+        @Suppress("DEPRECATION")
+        val list = Geocoder(context, Locale.getDefault()).getFromLocation(lat, lon, 1)
+        list?.firstOrNull()?.getAddressLine(0)
+    } catch (_: Exception) { null }
 }
 
 @Composable
@@ -325,21 +365,21 @@ private fun PostCardFooter(post: Post, postType: PostType, hasMedia: Boolean) {
             MetricItem(
                 icon = if (postType == PostType.ISSUE) Icons.Default.ThumbUp else Icons.Default.Favorite,
                 count = if (postType == PostType.ISSUE) post.upvotes else post.likes,
-                tint = if (postType == PostType.ISSUE) Color.Gray else Color(0xFFE91E63)
+                tint = if (postType == PostType.ISSUE) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFFE91E63)
             )
 
             // Comments
             MetricItem(
-                icon = Icons.Default.Comment,
+                icon = Icons.AutoMirrored.Filled.Comment,
                 count = post.comments,
-                tint = Color.Gray
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             // Views
             MetricItem(
                 icon = Icons.Default.Visibility,
                 count = post.views,
-                tint = Color.Gray
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             // Media indicator
@@ -383,7 +423,7 @@ private fun MetricItem(icon: androidx.compose.ui.graphics.vector.ImageVector, co
         Text(
             text = formatCount(count),
             fontSize = 12.sp,
-            color = Color.Gray
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

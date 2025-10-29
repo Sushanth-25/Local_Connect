@@ -9,6 +9,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MyLocation
+
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -103,6 +105,67 @@ fun MapScreen(
                     initializeLocationOverlay(context, mv) { overlay ->
                         myLocationOverlay = overlay
                     }
+                }
+            }
+
+            // If opened as picker, show a centered marker and a Select button
+            if (isPicker) {
+                // visual center marker
+                Icon(
+                    imageVector = Icons.Default.LocationOn,
+                    contentDescription = "Picker marker",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(40.dp)
+                )
+
+                // Confirm selection button
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        try {
+                            val center = mapView.mapCenter
+                            val lat = center.latitude
+                            val lon = center.longitude
+                            val coords = "${lat}, ${lon}"
+
+                            // Try to deliver the result to the previous back stack entry first
+                            val prev = navController.previousBackStackEntry
+                            if (prev != null) {
+                                prev.savedStateHandle.set("selected_location", coords)
+                            }
+
+                            // Also set explicitly on create_post entry if present (robustness)
+                            try {
+                                val entry = navController.getBackStackEntry("create_post")
+                                entry.savedStateHandle.set("selected_location", coords)
+                            } catch (_: Exception) {
+                                // ignore if not present
+                            }
+
+                            // Pop back to create_post explicitly (if it's in the stack) to ensure we return to the form
+                            val poppedToCreate = try {
+                                navController.popBackStack("create_post", false)
+                            } catch (_: Exception) {
+                                false
+                            }
+
+                            if (!poppedToCreate) {
+                                // If that failed, just pop once
+                                val popped = navController.popBackStack()
+                                if (!popped) navController.navigateUp()
+                            }
+
+                            Toast.makeText(context, "Location selected", Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Failed to select location: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(16.dp)
+                ) {
+                    Text("Select location")
                 }
             }
 

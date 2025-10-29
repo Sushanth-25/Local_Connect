@@ -25,7 +25,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,7 +41,6 @@ import kotlinx.coroutines.delay
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun MyPostsScreen(navController: NavHostController) {
-    val context = LocalContext.current
     val myPostsViewModel: MyPostsViewModel = viewModel(factory = MyPostsViewModelFactory())
     val uiState by myPostsViewModel.uiState.collectAsState()
 
@@ -123,7 +121,7 @@ fun MyPostsScreen(navController: NavHostController) {
                         Text(
                             "${uiState.userPosts.size} posts",
                             fontSize = 12.sp,
-                            color = Color.Gray
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 },
@@ -416,13 +414,13 @@ fun MyPostCard(
                                 Icon(
                                     Icons.Default.Collections,
                                     contentDescription = null,
-                                    tint = Color.White,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     "${pagerState.currentPage + 1}/${post.mediaUrls.size}",
-                                    color = Color.White,
+                                    color = MaterialTheme.colorScheme.onPrimary,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium
                                 )
@@ -442,7 +440,7 @@ fun MyPostCard(
                             Text(
                                 "Tap for HD",
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onPrimary,
                                 fontSize = 10.sp
                             )
                         }
@@ -477,9 +475,8 @@ fun MyPostCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         Icons.Default.Comment,
-                        contentDescription = "Comments",
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.primary
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
@@ -543,7 +540,7 @@ fun MyPostCard(
                 Text(
                     text = getTimeAgo(post.timestamp ?: 0L),
                     fontSize = 12.sp,
-                    color = Color.Gray
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

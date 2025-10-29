@@ -3,7 +3,6 @@ package com.example.localconnect.presentation.ui
 import android.Manifest
 import android.app.Application
 import android.content.pm.PackageManager
-import android.location.LocationManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -19,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -30,13 +30,17 @@ import com.example.localconnect.presentation.viewmodel.CreatePostViewModelFactor
 import com.example.localconnect.util.PermissionUtils
 import com.example.localconnect.util.UserLocationManager
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import android.location.Address
+import android.location.Geocoder
+import java.util.Locale
 import android.content.Context
 import androidx.core.content.FileProvider
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
-import android.os.Environment
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -130,12 +134,29 @@ fun CreatePostScreen(
         }
     }
 
-    // Handle navigation result for location
-    LaunchedEffect(Unit) {
+    // Handle navigation result for location: observe savedStateHandle StateFlow so we react when MapScreen sets it
+    LaunchedEffect(navController) {
         val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
-        savedStateHandle?.get<String>("selected_location")?.let { locationString ->
-            viewModel.onLocationChange(locationString)
-            savedStateHandle.remove<String>("selected_location")
+        val flow = savedStateHandle?.getStateFlow("selected_location", "")
+        if (flow != null) {
+            flow.collect { locationString ->
+                if (locationString.isBlank()) return@collect
+
+                val resolved = try {
+                    val coords = locationString.split(",").mapNotNull { it.trim().toDoubleOrNull() }
+                    if (coords.size >= 2) {
+                        androidGeocodeBestName(context, coords[0], coords[1]) ?: locationString
+                    } else locationString
+                } catch (_: Exception) { locationString }
+
+                viewModel.onLocationChange(resolved)
+                val coords = locationString.split(",").mapNotNull { it.trim().toDoubleOrNull() }
+                if (coords.size >= 2) {
+                    UserLocationManager.saveUserLocation(context, coords[0], coords[1], resolved)
+                }
+
+                savedStateHandle.remove<String>("selected_location")
+            }
         }
     }
 
@@ -567,7 +588,11 @@ fun CreatePostScreen(
                         ) {
                             Icon(Icons.Default.Camera, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Camera")
+                            Text(
+                                text = "Camera",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
 
                         OutlinedButton(
@@ -576,7 +601,11 @@ fun CreatePostScreen(
                         ) {
                             Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Gallery")
+                            Text(
+                                text = "Gallery",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
 
                         OutlinedButton(
@@ -585,7 +614,11 @@ fun CreatePostScreen(
                         ) {
                             Icon(Icons.Default.Videocam, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Video")
+                            Text(
+                                text = "Video",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
 
@@ -680,31 +713,40 @@ private fun getUserCurrentLocation(
         val lastKnownLocation = PermissionUtils.getLastKnownLocation(context)
 
         if (lastKnownLocation != null) {
-            val locationString = "${lastKnownLocation.latitude}, ${lastKnownLocation.longitude}"
-            viewModel.onLocationChange(locationString)
-
-            // Save to user preferences for HomeViewModel location filtering
-            UserLocationManager.saveUserLocation(
-                context,
-                lastKnownLocation.latitude,
-                lastKnownLocation.longitude,
-                locationString
-            )
-
+            // Reverse-geocode the coordinates to a human-readable address off the main thread
             scope.launch {
-                snackbarHostState.showSnackbar("Location added successfully!")
-            }
-        } else {
-            scope.launch {
-                snackbarHostState.showSnackbar("Unable to get current location. Please try again or use map.")
-            }
-        }
-    } catch (e: Exception) {
-        scope.launch {
-            snackbarHostState.showSnackbar("Error getting location: ${e.message}")
-        }
-    }
-}
+                val addressString = try {
+                    androidGeocodeBestName(context, lastKnownLocation.latitude, lastKnownLocation.longitude)
+                        ?: "${lastKnownLocation.latitude}, ${lastKnownLocation.longitude}"
+                 } catch (_: Exception) {
+                     "${lastKnownLocation.latitude}, ${lastKnownLocation.longitude}"
+                 }
+
+                 // Update the ViewModel and save location using the resolved address (or coordinates fallback)
+                 viewModel.onLocationChange(addressString)
+
+                 UserLocationManager.saveUserLocation(
+                     context,
+                     lastKnownLocation.latitude,
+                     lastKnownLocation.longitude,
+                     addressString
+                 )
+
+                 scope.launch {
+                     snackbarHostState.showSnackbar("Location added successfully!")
+                 }
+             }
+         } else {
+             scope.launch {
+                 snackbarHostState.showSnackbar("Unable to get current location. Please try again or use map.")
+             }
+         }
+     } catch (e: Exception) {
+         scope.launch {
+             snackbarHostState.showSnackbar("Error getting location: ${e.message}")
+         }
+     }
+ }
 
 @Throws(Exception::class)
 private fun createImageFile(context: Context): File {
@@ -720,4 +762,13 @@ private fun createImageFile(context: Context): File {
         ".jpg",         /* suffix */
         storageDir      /* directory */
     )
+}
+
+// Inline helper to build plain address from Android Geocoder
+private suspend fun androidGeocodeBestName(context: Context, lat: Double, lon: Double): String? = withContext(Dispatchers.IO) {
+    try {
+        @Suppress("DEPRECATION")
+        val list: List<Address>? = Geocoder(context, Locale.getDefault()).getFromLocation(lat, lon, 1)
+        list?.firstOrNull()?.getAddressLine(0)
+    } catch (_: Exception) { null }
 }
