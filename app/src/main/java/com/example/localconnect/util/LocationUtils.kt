@@ -83,6 +83,7 @@ object LocationUtils {
 
     /**
      * Filter posts based on user's location and community radius
+     * IMPORTANT: This filters posts to only show those within 30km of the user
      */
     fun filterPostsByLocation(
         posts: List<Post>,
@@ -90,30 +91,32 @@ object LocationUtils {
         userLon: Double?
     ): List<Post> {
         if (userLat == null || userLon == null) {
-            return posts // Return all posts if user location is not available
+            println("LocationUtils: No user location provided, returning empty list for safety")
+            return emptyList() // Don't show posts if user location is not available
         }
 
         return posts.filter { post ->
-            // Always include posts marked as local only regardless of coordinates
-            if (post.isLocalOnly) {
-                return@filter true
-            }
-
-            // For community posts (non-local), check if within 30km radius
+            // Check if post has location data - REQUIRED for filtering
             if (post.location.isNullOrBlank()) {
-                return@filter true // Include posts without location data
+                println("LocationUtils: Post ${post.postId} has no location data - EXCLUDING")
+                return@filter false // EXCLUDE posts without location coordinates
             }
 
             val postLat = parseLatitudeFromLocation(post.location)
             val postLon = parseLongitudeFromLocation(post.location)
 
             if (postLat == null || postLon == null) {
-                return@filter true // Include posts with invalid coordinates
+                println("LocationUtils: Post ${post.postId} has invalid coordinates: ${post.location} - EXCLUDING")
+                return@filter false // EXCLUDE posts with invalid coordinates
             }
 
+            // Calculate actual distance
             val distance = calculateDistance(userLat, userLon, postLat, postLon)
-            println("Post location: ${post.location}, Distance: ${distance}km, Within 30km: ${distance <= COMMUNITY_RADIUS_KM}")
-            return@filter distance <= COMMUNITY_RADIUS_KM
+            val isWithinRadius = distance <= COMMUNITY_RADIUS_KM
+
+            println("LocationUtils: Post ${post.postId} - Location: ${post.location}, Distance: ${"%.2f".format(distance)}km, Within 30km: $isWithinRadius")
+
+            return@filter isWithinRadius
         }
     }
 

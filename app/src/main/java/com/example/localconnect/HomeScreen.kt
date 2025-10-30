@@ -525,29 +525,73 @@ fun HomeScreen(navController: NavHostController, postDetailViewModel: PostDetail
                    item {
                        Card(
                            modifier = Modifier.fillMaxWidth(),
-                           colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                           colors = CardDefaults.cardColors(
+                               containerColor = if (selectedTab == 1 && homeUiState.needsLocationForCommunity)
+                                   MaterialTheme.colorScheme.errorContainer
+                               else
+                                   MaterialTheme.colorScheme.surfaceVariant
+                           )
                        ) {
                            Column(
                                modifier = Modifier.padding(24.dp),
                                horizontalAlignment = Alignment.CenterHorizontally
                            ) {
                                Icon(
-                                   imageVector = Icons.Default.PostAdd,
+                                   imageVector = if (selectedTab == 1 && homeUiState.needsLocationForCommunity)
+                                       Icons.Default.LocationOff
+                                   else
+                                       Icons.Default.PostAdd,
                                    contentDescription = null,
                                    modifier = Modifier.size(48.dp),
-                                   tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                   tint = if (selectedTab == 1 && homeUiState.needsLocationForCommunity)
+                                       MaterialTheme.colorScheme.onErrorContainer
+                                   else
+                                       MaterialTheme.colorScheme.onSurfaceVariant
                                )
                                Spacer(modifier = Modifier.height(8.dp))
                                Text(
-                                   text = "No posts yet",
+                                   text = if (selectedTab == 1 && homeUiState.needsLocationForCommunity)
+                                       "Location Required"
+                                   else
+                                       "No posts yet",
                                    style = MaterialTheme.typography.titleMedium,
-                                   color = MaterialTheme.colorScheme.onSurfaceVariant
+                                   color = if (selectedTab == 1 && homeUiState.needsLocationForCommunity)
+                                       MaterialTheme.colorScheme.onErrorContainer
+                                   else
+                                       MaterialTheme.colorScheme.onSurfaceVariant
                                )
                                Text(
-                                   text = "Be the first to share something with your community!",
+                                   text = if (selectedTab == 1 && homeUiState.needsLocationForCommunity)
+                                       "Please enable location permission to see posts within 30km of your location"
+                                   else if (selectedTab == 1)
+                                       "No posts found within 30km of your location. Try the Explore tab!"
+                                   else
+                                       "Be the first to share something with your community!",
                                    style = MaterialTheme.typography.bodySmall,
-                                   color = MaterialTheme.colorScheme.onSurfaceVariant
+                                   color = if (selectedTab == 1 && homeUiState.needsLocationForCommunity)
+                                       MaterialTheme.colorScheme.onErrorContainer
+                                   else
+                                       MaterialTheme.colorScheme.onSurfaceVariant,
+                                   textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                )
+
+                               if (selectedTab == 1 && homeUiState.needsLocationForCommunity) {
+                                   Spacer(modifier = Modifier.height(16.dp))
+                                   Button(
+                                       onClick = {
+                                           locationPermissionLauncher.launch(
+                                               arrayOf(
+                                                   Manifest.permission.ACCESS_FINE_LOCATION,
+                                                   Manifest.permission.ACCESS_COARSE_LOCATION
+                                               )
+                                           )
+                                       }
+                                   ) {
+                                       Icon(Icons.Default.LocationOn, contentDescription = null)
+                                       Spacer(modifier = Modifier.width(8.dp))
+                                       Text("Enable Location")
+                                   }
+                               }
                            }
                        }
                    }
@@ -681,9 +725,9 @@ fun getFilteredRealPosts(
 ): List<Post> {
     var filtered = posts
 
-    if (localOnly) {
-        filtered = filtered.filter { it.isLocalOnly }
-    }
+    // DON'T filter by isLocalOnly here - the ViewModel already handles location-based filtering
+    // for the Local Community tab using actual distance calculation (30km radius)
+    // This was the bug: we were showing ALL posts with isLocalOnly=true regardless of distance
 
     val requestedCategory = category.trim()
     if (!requestedCategory.equals("All", ignoreCase = true)) {

@@ -320,6 +320,12 @@ class FirebasePostRepository : PostRepository {
         return try {
             println("FirebasePostRepository: Getting community posts for location: $userLat, $userLon")
 
+            // User location is REQUIRED for community posts
+            if (userLat == null || userLon == null) {
+                println("FirebasePostRepository: No user location provided - returning empty list")
+                return emptyList()
+            }
+
             // Get ALL posts (not just type "POST") for community tab
             val snapshot = postsCollection
                 .orderBy("timestamp", Query.Direction.DESCENDING)
@@ -335,25 +341,15 @@ class FirebasePostRepository : PostRepository {
                 }
             }
 
-            println("FirebasePostRepository: Total posts fetched: ${posts.size}")
+            println("FirebasePostRepository: Total posts fetched from Firebase: ${posts.size}")
 
-            // Filter by location if user coordinates are available
-            val filteredPosts = if (userLat != null && userLon != null) {
-                val result = LocationUtils.filterPostsByLocation(posts, userLat, userLon)
-                println("FirebasePostRepository: After location filtering: ${result.size} posts")
-                result
-            } else {
-                // If no user location, show only local-only posts and posts without coordinates
-                val result = posts.filter { post ->
-                    post.isLocalOnly || post.location.isNullOrBlank()
-                }
-                println("FirebasePostRepository: No user location, showing ${result.size} local/no-location posts")
-                result
-            }
+            // Apply strict location-based filtering (30km radius)
+            val filteredPosts = LocationUtils.filterPostsByLocation(posts, userLat, userLon)
+            println("FirebasePostRepository: After 30km radius filtering: ${filteredPosts.size} posts")
 
             filteredPosts
         } catch (e: Exception) {
-            println("Error fetching community posts: ${e.message}")
+            println("FirebasePostRepository: Error fetching community posts: ${e.message}")
             emptyList()
         }
     }

@@ -27,29 +27,13 @@ class HomeViewModel(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
             try {
+                // Explore tab should show ALL posts without any location filtering
                 val allPosts = postRepository.getAllPosts()
 
-                // Apply location-based filtering if user location is available
-                val filteredPosts = if (context != null) {
-                    val userLocation = UserLocationManager.getUserLocation(context)
-                    if (userLocation != null) {
-                        LocationUtils.filterPostsByLocation(
-                            allPosts,
-                            userLocation.latitude,
-                            userLocation.longitude
-                        )
-                    } else {
-                        // If no user location, show all local posts and posts without location coordinates
-                        allPosts.filter { post ->
-                            post.isLocalOnly || post.location.isNullOrBlank()
-                        }
-                    }
-                } else {
-                    allPosts
-                }
+                println("HomeViewModel: Explore tab - loaded ${allPosts.size} total posts")
 
                 _uiState.value = _uiState.value.copy(
-                    posts = filteredPosts,
+                    posts = allPosts,
                     isLoading = false,
                     error = null
                 )
@@ -69,29 +53,32 @@ class HomeViewModel(
                 val userLocation = UserLocationManager.getUserLocation(context)
                 println("HomeViewModel: User location for community posts: $userLocation")
 
-                val posts = if (userLocation != null) {
-                    println("HomeViewModel: Getting posts within 30km of ${userLocation.latitude}, ${userLocation.longitude}")
-                    // Get posts within 30km radius for community tab
-                    postRepository.getCommunityPosts(userLocation.latitude, userLocation.longitude)
-                } else {
-                    println("HomeViewModel: No user location available, requesting location permission")
-                    // If no user location, show only posts without location coordinates or local posts
-                    val allPosts = postRepository.getAllPosts()
-                    allPosts.filter { post ->
-                        post.isLocalOnly || post.location.isNullOrBlank()
-                    }
+                if (userLocation == null) {
+                    println("HomeViewModel: No user location available - cannot show community posts")
+                    // User MUST have location enabled for community posts
+                    _uiState.value = _uiState.value.copy(
+                        posts = emptyList(),
+                        isLoading = false,
+                        error = null,
+                        needsLocationForCommunity = true
+                    )
+                    return@launch
                 }
 
-                println("HomeViewModel: Community posts loaded: ${posts.size} posts")
+                println("HomeViewModel: Getting posts within 30km of ${userLocation.latitude}, ${userLocation.longitude}")
+                // Get posts within 30km radius for community tab
+                val posts = postRepository.getCommunityPosts(userLocation.latitude, userLocation.longitude)
+
+                println("HomeViewModel: Community posts loaded: ${posts.size} posts within 30km")
                 posts.forEach { post ->
-                    println("HomeViewModel: Post ${post.postId}: location=${post.location}, isLocalOnly=${post.isLocalOnly}, type=${post.type}")
+                    println("HomeViewModel: Post ${post.postId}: location=${post.location}, title=${post.title}")
                 }
 
                 _uiState.value = _uiState.value.copy(
                     posts = posts,
                     isLoading = false,
                     error = null,
-                    needsLocationForCommunity = userLocation == null
+                    needsLocationForCommunity = false
                 )
             } catch (e: Exception) {
                 println("HomeViewModel: Error loading community posts: ${e.message}")
