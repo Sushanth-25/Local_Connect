@@ -281,76 +281,7 @@ fun HomeScreen(navController: NavHostController, postDetailViewModel: PostDetail
                 }
             )
         },
-        bottomBar = {
-            NavigationBar {
-                NavigationBarItem(
-                    selected = true,
-                    onClick = { },
-                    icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-                    label = { Text("Home") }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = {
-                        navController.navigate("map") // Navigate to map screen
-                    },
-                    icon = { Icon(Icons.Default.Map, contentDescription = "Map") },
-                    label = { Text("Map") }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = {
-                        navController.navigate("my_posts")
-                    },
-                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "My Posts") },
-                    label = { Text("My Posts") }
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = {
-                        navController.navigate("profile") // Navigate to profile screen
-                    },
-                    icon = { Icon(Icons.Default.Person, contentDescription = "Profile") },
-                    label = { Text("Profile") }
-                )
-            }
-        },
-        floatingActionButton = {
-            // keep the FAB positioned bottom-end; avoid fillMaxSize so it can't affect layout
-            Box(
-                modifier = Modifier
-                    .padding(end = 20.dp, bottom = 20.dp),
-                contentAlignment = Alignment.BottomEnd
-            ) {
-                FloatingActionButton(
-                    onClick = { navController.navigate("create_post") },
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant, // soft background tone
-                    elevation = FloatingActionButtonDefaults.elevation(3.dp),
-                    shape = RoundedCornerShape(12.dp) // smooth corners to match UI
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Add Post",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Create Post",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-            }
-        }
-
-
+        // bottomBar and FAB are provided by MainActivity's shared Scaffold so they were removed from here to avoid duplication
 
     ) { paddingValues ->
         // Replace nested static columns with a single LazyColumn so the whole screen (header, filters, posts, bottom nav)

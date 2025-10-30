@@ -12,6 +12,17 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.List
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import com.example.localconnect.ui.theme.LocalConnectTheme
 import com.google.firebase.auth.FirebaseAuth
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -110,94 +121,125 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
     }
     // Show NavHost after authentication
     if (startDestination != null) {
-        NavHost(
-            navController = navController,
-            startDestination = startDestination!!
-        ) {
-            composable("login") {
-                LoginScreen(
-                    onNavigateToSignup = { navController.navigate("signup") },
-                    onLoginSuccess = { navController.navigate("home"){
-                        popUpTo("login") { inclusive = true }
-                    }},
-                    onEmailNotVerified = { email ->
-                        navController.navigate("email_verification/$email")
+        // Observe current route to control bottom bar visibility and selection
+        val navBackStackEntry by navController.currentBackStackEntryAsState()
+        val currentRoute = navBackStackEntry?.destination?.route?.substringBefore('?')
+
+        // Define which routes should show the bottom bar
+        val bottomBarRoutes = setOf("home", "map", "my_posts", "profile", "edit_profile")
+
+        Scaffold(
+            bottomBar = {
+                if (currentRoute in bottomBarRoutes) {
+                    NavigationBar {
+                        NavigationBarItem(
+                            selected = currentRoute == "home",
+                            onClick = {
+                                if (currentRoute != "home") {
+                                    navController.navigate("home") {
+                                        popUpTo("home") { inclusive = false }
+                                    }
+                                }
+                            },
+                            icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
+                            label = { Text("Home") }
+                        )
+                        NavigationBarItem(
+                            selected = currentRoute == "map",
+                            onClick = {
+                                if (currentRoute != "map") navController.navigate("map")
+                            },
+                            icon = { Icon(Icons.Default.Map, contentDescription = "Map") },
+                            label = { Text("Map") }
+                        )
+                        NavigationBarItem(
+                            selected = currentRoute == "my_posts",
+                            onClick = {
+                                if (currentRoute != "my_posts") navController.navigate("my_posts")
+                            },
+                            icon = { Icon(Icons.Filled.List, contentDescription = "My Posts") },
+                            label = { Text("My Posts") }
+                        )
+                        NavigationBarItem(
+                            selected = currentRoute == "profile" || currentRoute == "edit_profile",
+                            onClick = {
+                                if (currentRoute != "profile") navController.navigate("profile")
+                            },
+                            icon = { Icon(Icons.Default.Person, contentDescription = "Profile") },
+                            label = { Text("Profile") }
+                        )
                     }
-                )
-            }
-            composable("signup") {
-                SignupScreen(
-                    onNavigateToLogin = { navController.navigate("login") },
-                    onNavigateToEmailVerification = { email ->
-                        navController.navigate("email_verification/$email")
-                    },
-                    onNavigateToHome = {
-                        navController.navigate("home") {
-                            popUpTo("signup") { inclusive = true }
-                        }
+                }
+            },
+            floatingActionButton = {
+                if (currentRoute == "home") {
+                    FloatingActionButton(onClick = { navController.navigate("create_post") }) {
+                        Icon(Icons.Default.Add, contentDescription = "Create Post")
                     }
-                )
-            }
-            composable("email_verification/{email}") { backStackEntry ->
-                val email = backStackEntry.arguments?.getString("email") ?: ""
-                EmailVerificationScreen(
-                    email = email,
-                    onVerificationComplete = {
-                        navController.navigate("home") {
-                            popUpTo("email_verification/{email}") { inclusive = true }
-                        }
-                    },
-                    onBackToLogin = {
-                        navController.navigate("login") {
-                            popUpTo("email_verification/{email}") { inclusive = true }
-                        }
-                    }
-                )
-            }
-            composable("home") {
-                // Pass arguments positionally to avoid named-arg mismatch
-                HomeScreen(navController, postDetailViewModel)
-            }
-            composable("profile") {
-                ProfileScreen(navController = navController)
-            }
-            composable("edit_profile") {
-                EditProfileScreen(navController = navController)
-            }
-            composable("map?isPicker={isPicker}") { backStackEntry ->
-                val isPicker = backStackEntry.arguments?.getString("isPicker")?.toBoolean() ?: false
-                MapScreen(
-                    navController = navController,
-                    isPicker = isPicker
-                )
-            }
-            composable("create_post") {
-                CreatePostScreen(
-                    navController = navController,
-                    onPostCreated = {
-                        navController.popBackStack()
-                    }
-                )
-            }
-            composable("post_detail/{postId}") { _ ->
-                val selectedPost by postDetailViewModel.selectedPost.collectAsState()
-                if (selectedPost != null) {
-                    // Clear the selected post only when the screen is disposed to avoid double pop
-                    DisposableEffect(Unit) {
-                        onDispose { postDetailViewModel.clearSelectedPost() }
-                    }
-                    PostDetailScreen(
-                        post = selectedPost!!,
-                        onBackClick = { navController.popBackStack() }
-                    )
-                } else {
-                    // If route opened without setting a post, navigate up once
-                    LaunchedEffect("no_post") { navController.navigateUp() }
                 }
             }
-            composable("my_posts") {
-                MyPostsScreen(navController = navController)
+        ) { innerPadding ->
+            Box(modifier = Modifier.padding(innerPadding)) {
+                NavHost(
+                    navController = navController,
+                    startDestination = startDestination!!
+                ) {
+                    composable("login") {
+                        LoginScreen(
+                            onNavigateToSignup = { navController.navigate("signup") },
+                            onLoginSuccess = { navController.navigate("home"){ popUpTo("login") { inclusive = true } } },
+                            onEmailNotVerified = { email -> navController.navigate("email_verification/$email") }
+                        )
+                    }
+                    composable("signup") {
+                        SignupScreen(
+                            onNavigateToLogin = { navController.navigate("login") },
+                            onNavigateToEmailVerification = { email -> navController.navigate("email_verification/$email") },
+                            onNavigateToHome = { navController.navigate("home") { popUpTo("signup") { inclusive = true } } }
+                        )
+                    }
+                    composable("email_verification/{email}") { backStackEntry ->
+                        val email = backStackEntry.arguments?.getString("email") ?: ""
+                        EmailVerificationScreen(
+                            email = email,
+                            onVerificationComplete = {
+                                navController.navigate("home") { popUpTo("email_verification/{email}") { inclusive = true } }
+                            },
+                            onBackToLogin = {
+                                navController.navigate("login") { popUpTo("email_verification/{email}") { inclusive = true } }
+                            }
+                        )
+                    }
+                    composable("home") {
+                        HomeScreen(navController, postDetailViewModel)
+                    }
+                    composable("profile") {
+                        ProfileScreen(navController = navController)
+                    }
+                    composable("edit_profile") {
+                        EditProfileScreen(navController = navController)
+                    }
+                    composable("map?isPicker={isPicker}") { backStackEntry ->
+                        val isPicker = backStackEntry.arguments?.getString("isPicker")?.toBoolean() ?: false
+                        MapScreen(navController = navController, isPicker = isPicker)
+                    }
+                    composable("create_post") {
+                        CreatePostScreen(navController = navController, onPostCreated = { navController.popBackStack() })
+                    }
+                    composable("post_detail/{postId}") { _ ->
+                        val selectedPost by postDetailViewModel.selectedPost.collectAsState()
+                        if (selectedPost != null) {
+                            DisposableEffect(Unit) { onDispose { postDetailViewModel.clearSelectedPost() } }
+                            PostDetailScreen(post = selectedPost!!, onBackClick = { navController.popBackStack() })
+                        } else {
+                            LaunchedEffect("no_post") { navController.navigateUp() }
+                        }
+                    }
+                    composable("my_posts") {
+                        MyPostsScreen(navController = navController)
+                    }
+                }
             }
         }
-    }
-}
+     }
+ }
