@@ -195,7 +195,11 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
                         SignupScreen(
                             onNavigateToLogin = { navController.navigate("login") },
                             onNavigateToEmailVerification = { email -> navController.navigate("email_verification/$email") },
-                            onNavigateToHome = { navController.navigate("home") { popUpTo("signup") { inclusive = true } } }
+                            onNavigateToHome = {
+                                navController.navigate("home") {
+                                    popUpTo(0) { inclusive = true } // Clear entire back stack
+                                }
+                            }
                         )
                     }
                     composable("email_verification/{email}") { backStackEntry ->

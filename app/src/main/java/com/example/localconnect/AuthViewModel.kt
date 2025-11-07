@@ -222,15 +222,31 @@ class AuthViewModel : ViewModel() {
                 if (task.isSuccessful) {
                     android.util.Log.d("AuthViewModel", "Firebase Auth with Google successful")
                     val user = auth.currentUser
-                    // Save user profile if new user
-                    if (task.result?.additionalUserInfo?.isNewUser == true && user != null) {
-                        android.util.Log.d("AuthViewModel", "New Google user detected, saving profile...")
+                    if (user != null) {
                         val name = user.displayName ?: ""
                         val email = user.email ?: ""
-                        saveUserProfile(user.uid, name, email, true)
+                        val uid = user.uid
+
+                        // Check if user exists in Firestore, if not create the profile
+                        firestore.collection("users").document(uid).get()
+                            .addOnSuccessListener { document ->
+                                if (!document.exists()) {
+                                    // User doesn't exist in Firestore, create new profile
+                                    android.util.Log.d("AuthViewModel", "User not found in Firestore, creating new profile...")
+                                    saveUserProfile(uid, name, email, true)
+                                } else {
+                                    // User already exists, just complete sign-in
+                                    android.util.Log.d("AuthViewModel", "User already exists in Firestore")
+                                    _authResult.value = AuthResult.Success
+                                }
+                            }
+                            .addOnFailureListener { e ->
+                                // On error checking, create the profile anyway to be safe
+                                android.util.Log.e("AuthViewModel", "Error checking user existence: ${e.message}, creating profile anyway")
+                                saveUserProfile(uid, name, email, true)
+                            }
                     } else {
-                        android.util.Log.d("AuthViewModel", "Existing Google user, setting auth result to Success")
-                        _authResult.value = AuthResult.Success
+                        _authResult.value = AuthResult.Error("User is null after sign-in")
                     }
                 } else {
                     android.util.Log.e("AuthViewModel", "Firebase Auth with Google failed: ${task.exception?.message}")
