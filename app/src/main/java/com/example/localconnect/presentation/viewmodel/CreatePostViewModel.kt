@@ -69,6 +69,14 @@ class CreatePostViewModel(
         _uiState.value = _uiState.value.copy(location = location)
     }
 
+    fun onLocationChangeWithCoords(locationName: String, latitude: Double?, longitude: Double?) {
+        _uiState.value = _uiState.value.copy(
+            location = locationName,
+            latitude = latitude,
+            longitude = longitude
+        )
+    }
+
     fun onLocalOnlyToggle(isLocalOnly: Boolean) {
         _uiState.value = _uiState.value.copy(isLocalOnly = isLocalOnly)
     }
@@ -244,7 +252,10 @@ class CreatePostViewModel(
                     timestamp = timestamp,
                     updatedAt = timestamp,
                     priority = if (currentState.postType == PostType.ISSUE) currentState.priority else null,
-                    type = currentState.postType.value
+                    type = currentState.postType.value,
+                    latitude = currentState.latitude,
+                    longitude = currentState.longitude,
+                    locationName = currentState.location.ifBlank { null }
                 )
 
                 Log.d(TAG, "Created post object with ${post.mediaUrls.size} media URLs and ${post.thumbnailUrls.size} thumbnail URLs")
@@ -304,6 +315,8 @@ data class CreatePostUiState(
     val description: String = "",
     val tags: List<String> = emptyList(),
     val location: String = "",
+    val latitude: Double? = null,
+    val longitude: Double? = null,
     val isLocalOnly: Boolean = true,
     val priority: Int? = null,
     val status: String? = "Open",

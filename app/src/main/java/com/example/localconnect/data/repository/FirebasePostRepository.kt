@@ -117,7 +117,10 @@ class FirebasePostRepository : PostRepository {
                 "upvotes" to sanitizedPost.upvotes,
                 "views" to sanitizedPost.views,
                 "priority" to sanitizedPost.priority,
-                "type" to sanitizedPost.type
+                "type" to sanitizedPost.type,
+                "latitude" to sanitizedPost.latitude,
+                "longitude" to sanitizedPost.longitude,
+                "locationName" to sanitizedPost.locationName
             )
 
             Log.d(TAG, "Saving post data to Firestore: $postData")

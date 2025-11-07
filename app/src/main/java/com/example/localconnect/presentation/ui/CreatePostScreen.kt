@@ -142,17 +142,19 @@ fun CreatePostScreen(
             flow.collect { locationString ->
                 if (locationString.isBlank()) return@collect
 
-                val resolved = try {
-                    val coords = locationString.split(",").mapNotNull { it.trim().toDoubleOrNull() }
-                    if (coords.size >= 2) {
-                        androidGeocodeBestName(context, coords[0], coords[1]) ?: locationString
-                    } else locationString
-                } catch (_: Exception) { locationString }
-
-                viewModel.onLocationChange(resolved)
                 val coords = locationString.split(",").mapNotNull { it.trim().toDoubleOrNull() }
                 if (coords.size >= 2) {
-                    UserLocationManager.saveUserLocation(context, coords[0], coords[1], resolved)
+                    val lat = coords[0]
+                    val lon = coords[1]
+
+                    val resolved = try {
+                        androidGeocodeBestName(context, lat, lon) ?: locationString
+                    } catch (_: Exception) { locationString }
+
+                    viewModel.onLocationChangeWithCoords(resolved, lat, lon)
+                    UserLocationManager.saveUserLocation(context, lat, lon, resolved)
+                } else {
+                    viewModel.onLocationChange(locationString)
                 }
 
                 savedStateHandle.remove<String>("selected_location")
@@ -722,8 +724,12 @@ private fun getUserCurrentLocation(
                      "${lastKnownLocation.latitude}, ${lastKnownLocation.longitude}"
                  }
 
-                 // Update the ViewModel and save location using the resolved address (or coordinates fallback)
-                 viewModel.onLocationChange(addressString)
+                 // Update the ViewModel with location name and coordinates
+                 viewModel.onLocationChangeWithCoords(
+                     addressString,
+                     lastKnownLocation.latitude,
+                     lastKnownLocation.longitude
+                 )
 
                  UserLocationManager.saveUserLocation(
                      context,

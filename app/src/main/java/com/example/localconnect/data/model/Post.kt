@@ -29,11 +29,14 @@ data class Post(
     @PropertyName("priority") val priority: Int? = null,
     @PropertyName("type") val type: String? = null,
 
+    // Location coordinates for distance calculation
+    @PropertyName("latitude") val latitude: Double? = null,
+    @PropertyName("longitude") val longitude: Double? = null,
+    @PropertyName("locationName") val locationName: String? = null,
+
     // Legacy fields - excluded from serialization but kept for deserialization compatibility
     @Exclude @get:Exclude var imageUrl: String? = null,
-    @Exclude @get:Exclude var videoUrl: String? = null,
-    @Exclude @get:Exclude var latitude: Double? = null,
-    @Exclude @get:Exclude var longitude: Double? = null
+    @Exclude @get:Exclude var videoUrl: String? = null
 ) {
     // No-argument constructor for Firestore
     constructor() : this(
