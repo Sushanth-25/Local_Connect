@@ -54,5 +54,26 @@ class FirebaseAuthRepository : AuthRepository {
             email = firebaseUser.email ?: ""
         )
     }
-}
 
+    override suspend fun updateProfileImage(userId: String, imageUrl: String): Result<Unit> {
+        return try {
+            firestore.collection("users")
+                .document(userId)
+                .update("profileImage", imageUrl)
+                .await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getUserById(userId: String): Result<User> {
+        return try {
+            val doc = firestore.collection("users").document(userId).get().await()
+            val user = doc.toObject(User::class.java) ?: throw Exception("User not found")
+            Result.success(user)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+}
