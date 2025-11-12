@@ -14,7 +14,6 @@ data class Post(
     @PropertyName("title") val title: String? = null,
     @PropertyName("category") val category: String? = null,
     @PropertyName("status") val status: String? = null,
-    @PropertyName("location") val location: String? = null,
     @PropertyName("hasImage") val hasImage: Boolean = false,
     @PropertyName("mediaUrls") val mediaUrls: List<String> = emptyList(),
     @PropertyName("thumbnailUrls") val thumbnailUrls: List<String> = emptyList(),
@@ -29,10 +28,10 @@ data class Post(
     @PropertyName("priority") val priority: Int? = null,
     @PropertyName("type") val type: String? = null,
 
-    // Location coordinates for distance calculation
-    @PropertyName("latitude") val latitude: Double? = null,
-    @PropertyName("longitude") val longitude: Double? = null,
-    @PropertyName("locationName") val locationName: String? = null,
+    // Location - required for all posts
+    @PropertyName("latitude") val latitude: Double = 0.0,
+    @PropertyName("longitude") val longitude: Double = 0.0,
+    @PropertyName("locationName") val locationName: String = "",
 
     // Legacy fields - excluded from serialization but kept for deserialization compatibility
     @Exclude @get:Exclude var imageUrl: String? = null,
@@ -47,7 +46,6 @@ data class Post(
         title = null,
         category = null,
         status = null,
-        location = null,
         hasImage = false,
         mediaUrls = emptyList(),
         tags = emptyList(),
@@ -63,8 +61,9 @@ data class Post(
         type = null,
         imageUrl = null,
         videoUrl = null,
-        latitude = null,
-        longitude = null
+        latitude = 0.0,
+        longitude = 0.0,
+        locationName = ""
     )
 }
 

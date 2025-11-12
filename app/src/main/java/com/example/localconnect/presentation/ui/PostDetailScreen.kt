@@ -439,7 +439,7 @@ private fun PostDetailContent(post: Post, postType: PostType) {
         }
 
         // Location
-        if (!post.location.isNullOrBlank()) {
+        if (post.locationName.isNotBlank()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Default.LocationOn,
@@ -449,7 +449,7 @@ private fun PostDetailContent(post: Post, postType: PostType) {
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = post.location,
+                    text = post.locationName,
                     fontSize = 14.sp,
                     color = Color.Gray
                 )

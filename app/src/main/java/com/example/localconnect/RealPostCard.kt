@@ -89,8 +89,8 @@ fun RealPostCard(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Location
-            if (!post.location.isNullOrBlank()) {
-                PostCardLocation(location = post.location)
+            if (post.locationName.isNotBlank()) {
+                PostCardLocation(location = post.locationName)
                 Spacer(modifier = Modifier.height(8.dp))
             }
 

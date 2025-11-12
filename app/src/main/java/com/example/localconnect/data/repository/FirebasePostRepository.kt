@@ -85,10 +85,11 @@ class FirebasePostRepository : PostRepository {
                 caption = post.caption?.takeIf { it.isNotBlank() },
                 description = post.description?.takeIf { it.isNotBlank() },
                 title = post.title?.takeIf { it.isNotBlank() },
-                location = post.location?.takeIf { it.isNotBlank() },
                 status = post.status?.takeIf { it.isNotBlank() },
                 category = post.category?.takeIf { it.isNotBlank() },
                 type = post.type?.takeIf { it.isNotBlank() },
+                // Ensure location fields are not blank
+                locationName = post.locationName.ifBlank { "Unknown Location" },
                 // Handle lists properly - keep them as is since they're already validated
                 mediaUrls = post.mediaUrls,
                 thumbnailUrls = post.thumbnailUrls,
@@ -104,7 +105,6 @@ class FirebasePostRepository : PostRepository {
                 "title" to sanitizedPost.title,
                 "category" to sanitizedPost.category,
                 "status" to sanitizedPost.status,
-                "location" to sanitizedPost.location,
                 "hasImage" to sanitizedPost.hasImage,
                 "mediaUrls" to sanitizedPost.mediaUrls,
                 "thumbnailUrls" to sanitizedPost.thumbnailUrls,
@@ -368,19 +368,11 @@ class FirebasePostRepository : PostRepository {
                 // Always include local-only posts
                 if (post.isLocalOnly) return@filter true
 
-                // For community posts, check distance using location string
-                val postLat = LocationUtils.parseLatitudeFromLocation(post.location)
-                val postLon = LocationUtils.parseLongitudeFromLocation(post.location)
-
-                if (postLat != null && postLon != null) {
-                    val distance = LocationUtils.calculateDistance(
-                        userLat, userLon, postLat, postLon
-                    )
-                    distance <= radiusKm
-                } else {
-                    // Include posts without valid coordinates in community feed
-                    true
-                }
+                // For community posts, check distance using coordinates
+                val distance = LocationUtils.calculateDistance(
+                    userLat, userLon, post.latitude, post.longitude
+                )
+                distance <= radiusKm
             }
         } catch (e: Exception) {
             println("Error fetching posts near location: ${e.message}")

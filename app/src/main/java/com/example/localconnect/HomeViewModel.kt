@@ -71,7 +71,7 @@ class HomeViewModel(
 
                 println("HomeViewModel: Community posts loaded: ${posts.size} posts within 30km")
                 posts.forEach { post ->
-                    println("HomeViewModel: Post ${post.postId}: location=${post.location}, title=${post.title}")
+                    println("HomeViewModel: Post ${post.postId}: location=${post.locationName}, title=${post.title}")
                 }
 
                 _uiState.value = _uiState.value.copy(

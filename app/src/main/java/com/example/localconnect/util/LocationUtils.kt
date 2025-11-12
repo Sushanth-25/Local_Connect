@@ -85,7 +85,7 @@ object LocationUtils {
      * Check if a post is within community radius (30km) from user's location
      * Uses Post's direct latitude/longitude fields (new approach)
      */
-    fun isWithinCommunityRadius(
+    fun isPostNearUser(
         userLat: Double?,
         userLon: Double?,
         post: Post
@@ -94,15 +94,7 @@ object LocationUtils {
             return true // If no user coordinates, include in results
         }
 
-        val postLat = post.latitude
-        val postLon = post.longitude
-
-        if (postLat == null || postLon == null) {
-            // Fallback to parsing from location string for backward compatibility
-            return isWithinCommunityRadius(userLat, userLon, post.location)
-        }
-
-        val distance = calculateDistance(userLat, userLon, postLat, postLon)
+        val distance = calculateDistance(userLat, userLon, post.latitude, post.longitude)
         return distance <= COMMUNITY_RADIUS_KM
     }
 
@@ -121,32 +113,11 @@ object LocationUtils {
         }
 
         return posts.filter { post ->
-            // Try to get coordinates from new fields first
-            var postLat = post.latitude
-            var postLon = post.longitude
-
-            // Fallback to parsing from location string for backward compatibility
-            if (postLat == null || postLon == null) {
-                if (post.location.isNullOrBlank()) {
-                    println("LocationUtils: Post ${post.postId} has no location data - EXCLUDING")
-                    return@filter false // EXCLUDE posts without location coordinates
-                }
-
-                postLat = parseLatitudeFromLocation(post.location)
-                postLon = parseLongitudeFromLocation(post.location)
-
-                if (postLat == null || postLon == null) {
-                    println("LocationUtils: Post ${post.postId} has invalid coordinates: ${post.location} - EXCLUDING")
-                    return@filter false // EXCLUDE posts with invalid coordinates
-                }
-            }
-
-            // Calculate actual distance
-            val distance = calculateDistance(userLat, userLon, postLat, postLon)
+            // Calculate actual distance using required coordinates
+            val distance = calculateDistance(userLat, userLon, post.latitude, post.longitude)
             val isWithinRadius = distance <= COMMUNITY_RADIUS_KM
 
-            val locationDisplay = post.locationName ?: post.location ?: "Unknown"
-            println("LocationUtils: Post ${post.postId} - Location: $locationDisplay, Distance: ${"%.2f".format(distance)}km, Within 30km: $isWithinRadius")
+            println("LocationUtils: Post ${post.postId} - Location: ${post.locationName}, Distance: ${"%.2f".format(distance)}km, Within 30km: $isWithinRadius")
 
             return@filter isWithinRadius
         }
@@ -192,16 +163,7 @@ object LocationUtils {
             return ""
         }
 
-        // Try to get coordinates from new fields first
-        val postLat = post.latitude
-        val postLon = post.longitude
-
-        // Fallback to parsing from location string for backward compatibility
-        if (postLat == null || postLon == null) {
-            return getDistanceString(userLat, userLon, post.location)
-        }
-
-        val distance = calculateDistance(userLat, userLon, postLat, postLon)
+        val distance = calculateDistance(userLat, userLon, post.latitude, post.longitude)
         return when {
             distance < 1.0 -> "${(distance * 1000).roundToInt()}m away"
             distance < 10.0 -> "${"%.1f".format(distance)}km away"

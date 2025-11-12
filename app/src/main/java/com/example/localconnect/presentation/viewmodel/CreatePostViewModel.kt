@@ -146,6 +146,11 @@ class CreatePostViewModel(
             return
         }
 
+        if (currentState.location.isBlank() || currentState.latitude == null || currentState.longitude == null) {
+            _uiState.value = currentState.copy(error = "Location is required for all posts")
+            return
+        }
+
         _uiState.value = currentState.copy(isLoading = true, error = null)
 
         viewModelScope.launch {
@@ -243,7 +248,6 @@ class CreatePostViewModel(
                     title = if (currentState.postType == PostType.ISSUE) currentState.title else null,
                     category = currentState.category,
                     status = if (currentState.postType == PostType.ISSUE) currentState.status else null,
-                    location = currentState.location.ifBlank { null },
                     hasImage = mediaUrls.isNotEmpty(),
                     mediaUrls = mediaUrls,
                     thumbnailUrls = thumbnailUrls,
@@ -253,9 +257,9 @@ class CreatePostViewModel(
                     updatedAt = timestamp,
                     priority = if (currentState.postType == PostType.ISSUE) currentState.priority else null,
                     type = currentState.postType.value,
-                    latitude = currentState.latitude,
-                    longitude = currentState.longitude,
-                    locationName = currentState.location.ifBlank { null }
+                    latitude = currentState.latitude ?: 0.0,
+                    longitude = currentState.longitude ?: 0.0,
+                    locationName = currentState.location.ifBlank { "Unknown Location" }
                 )
 
                 Log.d(TAG, "Created post object with ${post.mediaUrls.size} media URLs and ${post.thumbnailUrls.size} thumbnail URLs")
