@@ -133,37 +133,156 @@ class FirebasePostRepository : PostRepository {
         }
     }
 
+    /**
+     * Toggle like on a post (like if not liked, unlike if already liked)
+     * Uses subcollection: /posts/{postId}/likes/{userId}
+     *
+     * @return Result with Boolean - true if liked, false if unliked
+     */
+    suspend fun togglePostLike(postId: String, userId: String): Result<Boolean> {
+        return try {
+            val postRef = postsCollection.document(postId)
+            val likeRef = postRef.collection("likes").document(userId)
+
+            val isLiked = firestore.runTransaction { transaction ->
+                // STEP 1: ALL READS FIRST
+                val postSnapshot = transaction.get(postRef)
+                val likeSnapshot = transaction.get(likeRef)
+
+                val currentLikes = postSnapshot.getLong("likes") ?: 0L
+                val alreadyLiked = likeSnapshot.exists()
+
+                // STEP 2: ALL WRITES
+                if (alreadyLiked) {
+                    // Unlike: remove like document and decrement counter
+                    transaction.delete(likeRef)
+                    val newCount = (currentLikes - 1).coerceAtLeast(0)
+                    transaction.update(postRef, "likes", newCount)
+                    transaction.update(postRef, "updatedAt", System.currentTimeMillis())
+                    false // Return false (unliked)
+                } else {
+                    // Like: add like document and increment counter
+                    val likeData = hashMapOf(
+                        "userId" to userId,
+                        "timestamp" to System.currentTimeMillis()
+                    )
+                    transaction.set(likeRef, likeData)
+                    transaction.update(postRef, "likes", currentLikes + 1)
+                    transaction.update(postRef, "updatedAt", System.currentTimeMillis())
+                    true // Return true (liked)
+                }
+            }.await()
+
+            Log.d(TAG, "Post like toggled: postId=$postId, isLiked=$isLiked")
+            Result.success(isLiked)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error toggling post like: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Check if user has liked a post
+     */
+    suspend fun hasUserLikedPost(postId: String, userId: String): Boolean {
+        return try {
+            val likeRef = postsCollection.document(postId)
+                .collection("likes")
+                .document(userId)
+
+            val snapshot = likeRef.get().await()
+            snapshot.exists()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking like status: ${e.message}", e)
+            false
+        }
+    }
+
+    /**
+     * Increment view counter for a post ONLY ONCE per user
+     * Uses subcollection: /posts/{postId}/views/{userId}
+     *
+     * @return Result with Boolean - true if view was counted, false if already viewed
+     */
+    suspend fun incrementPostViewOnce(postId: String, userId: String): Result<Boolean> {
+        return try {
+            val postRef = postsCollection.document(postId)
+            val viewRef = postRef.collection("views").document(userId)
+
+            val wasCounted = firestore.runTransaction { transaction ->
+                // STEP 1: ALL READS FIRST
+                val postSnapshot = transaction.get(postRef)
+                val viewSnapshot = transaction.get(viewRef)
+
+                val currentViews = postSnapshot.getLong("views") ?: 0L
+                val alreadyViewed = viewSnapshot.exists()
+
+                // STEP 2: ALL WRITES
+                if (alreadyViewed) {
+                    // User already viewed this post - don't increment
+                    false
+                } else {
+                    // First time view - add view document and increment counter
+                    val viewData = hashMapOf(
+                        "userId" to userId,
+                        "timestamp" to System.currentTimeMillis()
+                    )
+                    transaction.set(viewRef, viewData)
+                    transaction.update(postRef, "views", currentViews + 1)
+                    true
+                }
+            }.await()
+
+            Log.d(TAG, "Post view tracking: postId=$postId, wasCounted=$wasCounted")
+            Result.success(wasCounted)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error tracking post view: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Check if user has viewed a post
+     */
+    suspend fun hasUserViewedPost(postId: String, userId: String): Boolean {
+        return try {
+            val viewRef = postsCollection.document(postId)
+                .collection("views")
+                .document(userId)
+
+            val snapshot = viewRef.get().await()
+            snapshot.exists()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking view status: ${e.message}", e)
+            false
+        }
+    }
+
+    // Legacy methods - kept for backward compatibility but deprecated
+    @Deprecated("Use togglePostLike() instead", ReplaceWith("togglePostLike(postId, userId)"))
     override suspend fun likePost(postId: String): Result<Unit> {
-        return try {
-            val postRef = postsCollection.document(postId)
-            firestore.runTransaction { transaction ->
-                val snapshot = transaction.get(postRef)
-                val currentLikes = snapshot.getLong("likes") ?: 0L
-                transaction.update(postRef, "likes", currentLikes + 1)
-                transaction.update(postRef, "updatedAt", System.currentTimeMillis())
-            }.await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            println("Error liking post: ${e.message}")
-            Result.failure(e)
-        }
+        Log.w(TAG, "likePost() is deprecated, use togglePostLike() instead")
+        return Result.success(Unit)
     }
 
+    @Deprecated("Use togglePostLike() instead", ReplaceWith("togglePostLike(postId, userId)"))
+    suspend fun unlikePost(postId: String): Result<Unit> {
+        Log.w(TAG, "unlikePost() is deprecated, use togglePostLike() instead")
+        return Result.success(Unit)
+    }
+
+    @Deprecated("Use incrementPostViewOnce() instead", ReplaceWith("incrementPostViewOnce(postId, userId)"))
     suspend fun incrementViews(postId: String): Result<Unit> {
-        return try {
-            val postRef = postsCollection.document(postId)
-            firestore.runTransaction { transaction ->
-                val snapshot = transaction.get(postRef)
-                val currentViews = snapshot.getLong("views") ?: 0L
-                transaction.update(postRef, "views", currentViews + 1)
-            }.await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            println("Error incrementing views: ${e.message}")
-            Result.failure(e)
-        }
+        Log.w(TAG, "incrementViews() is deprecated, use incrementPostViewOnce() instead")
+        return Result.success(Unit)
     }
 
+    /**
+     * Increment comment counter for a post
+     * Note: This is typically called automatically by CommentRepository when adding comments
+     * Use CommentRepository.addComment() instead of calling this directly
+     */
+    @Deprecated("Use CommentRepository.addComment() instead", ReplaceWith("CommentRepository().addComment(comment)"))
     suspend fun incrementComments(postId: String): Result<Unit> {
         return try {
             val postRef = postsCollection.document(postId)
@@ -173,10 +292,29 @@ class FirebasePostRepository : PostRepository {
                 transaction.update(postRef, "comments", currentComments + 1)
                 transaction.update(postRef, "updatedAt", System.currentTimeMillis())
             }.await()
+            Log.d(TAG, "Comment count incremented for post $postId")
             Result.success(Unit)
         } catch (e: Exception) {
-            println("Error incrementing comments: ${e.message}")
+            Log.e(TAG, "Error incrementing comments: ${e.message}", e)
             Result.failure(e)
+        }
+    }
+
+    /**
+     * Get aggregate stats for a post (likes, comments, views)
+     */
+    suspend fun getPostStats(postId: String): PostStats? {
+        return try {
+            val snapshot = postsCollection.document(postId).get().await()
+            PostStats(
+                likes = snapshot.getLong("likes")?.toInt() ?: 0,
+                comments = snapshot.getLong("comments")?.toInt() ?: 0,
+                views = snapshot.getLong("views")?.toInt() ?: 0,
+                upvotes = snapshot.getLong("upvotes")?.toInt() ?: 0
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting post stats: ${e.message}", e)
+            null
         }
     }
 
@@ -385,3 +523,14 @@ class FirebasePostRepository : PostRepository {
         }
     }
 }
+
+/**
+ * Data class to hold aggregate statistics for a post
+ */
+data class PostStats(
+    val likes: Int = 0,
+    val comments: Int = 0,
+    val views: Int = 0,
+    val upvotes: Int = 0
+)
+

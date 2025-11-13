@@ -234,7 +234,11 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
                         val selectedPost by postDetailViewModel.selectedPost.collectAsState()
                         if (selectedPost != null) {
                             DisposableEffect(Unit) { onDispose { postDetailViewModel.clearSelectedPost() } }
-                            PostDetailScreen(post = selectedPost!!, onBackClick = { navController.popBackStack() })
+                            PostDetailScreen(
+                                post = selectedPost!!,
+                                viewModel = postDetailViewModel,
+                                onBackClick = { navController.popBackStack() }
+                            )
                         } else {
                             LaunchedEffect("no_post") { navController.navigateUp() }
                         }

@@ -1,0 +1,107 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function to check if user is authenticated
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if user owns the resource
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // Posts collection rules
+    match /posts/{postId} {
+      // Anyone can read posts
+      allow read: if true;
+
+      // Only authenticated users can create posts
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+
+      // Only post owner can update/delete
+      allow update, delete: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+
+      // ===== POST LIKES SUBCOLLECTION =====
+      // Structure: /posts/{postId}/likes/{userId}
+      match /likes/{userId} {
+        // Anyone can read likes (to show who liked)
+        allow read: if true;
+
+        // User can only create/delete their own like
+        allow create: if isSignedIn()
+          && userId == request.auth.uid
+          && request.resource.data.userId == request.auth.uid;
+
+        allow delete: if isSignedIn()
+          && userId == request.auth.uid;
+
+        // Updates not allowed - only create/delete
+        allow update: if false;
+      }
+
+      // ===== POST VIEWS SUBCOLLECTION =====
+      // Structure: /posts/{postId}/views/{userId}
+      match /views/{userId} {
+        // Anyone can read views count
+        allow read: if true;
+
+        // User can only create their own view (once)
+        allow create: if isSignedIn()
+          && userId == request.auth.uid
+          && request.resource.data.userId == request.auth.uid;
+
+        // Cannot delete or update views
+        allow delete, update: if false;
+      }
+
+      // ===== COMMENTS SUBCOLLECTION =====
+      // Structure: /posts/{postId}/comments/{commentId}
+      match /comments/{commentId} {
+        // Anyone can read comments
+        allow read: if true;
+
+        // Authenticated users can create comments
+        allow create: if isSignedIn()
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.postId == postId
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 1000;
+
+        // Only comment owner can update their comment
+        allow update: if isSignedIn()
+          && resource.data.userId == request.auth.uid
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.postId == resource.data.postId;
+
+        // Comment owner or post owner can delete comments
+        allow delete: if isSignedIn()
+          && (resource.data.userId == request.auth.uid
+              || get(/databases/$(database)/documents/posts/$(postId)).data.userId == request.auth.uid);
+
+        // ===== COMMENT LIKES SUBCOLLECTION =====
+        // Structure: /posts/{postId}/comments/{commentId}/likes/{userId}
+        match /likes/{userId} {
+          // Anyone can read comment likes
+          allow read: if true;
+
+          // User can only create/delete their own comment like
+          allow create: if isSignedIn()
+            && userId == request.auth.uid
+            && request.resource.data.userId == request.auth.uid;
+
+          allow delete: if isSignedIn()
+            && userId == request.auth.uid;
+
+          // Updates not allowed - only create/delete
+          allow update: if false;
+        }
+      }
+    }
+  }
+}
+

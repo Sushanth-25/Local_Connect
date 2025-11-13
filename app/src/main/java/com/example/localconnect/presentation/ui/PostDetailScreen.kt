@@ -1,8 +1,6 @@
 package com.example.localconnect.presentation.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Comment
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -45,14 +44,29 @@ import java.util.*
 @Composable
 fun PostDetailScreen(
     post: Post,
+    viewModel: com.example.localconnect.presentation.viewmodel.PostDetailViewModel,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val postType = PostType.fromString(post.type)
     var selectedMediaIndex by remember { mutableStateOf(0) }
 
+    val comments by viewModel.comments.collectAsState()
+    val postStats by viewModel.postStats.collectAsState()
+    val isLiked by viewModel.isLiked.collectAsState()
+    val likedComments by viewModel.likedComments.collectAsState()
+    val error by viewModel.error.collectAsState()
+
     // Handle system back gesture/key
     BackHandler { onBackClick() }
+
+    // Show error snackbar
+    error?.let { errorMessage ->
+        LaunchedEffect(errorMessage) {
+            // Show error to user (you can add a Snackbar here)
+            viewModel.clearError()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -102,17 +116,32 @@ fun PostDetailScreen(
 
             // Post Metrics
             item {
-                PostDetailMetrics(post = post, postType = postType)
+                PostDetailMetrics(
+                    postStats = postStats,
+                    postType = postType
+                )
             }
 
             // Action Buttons
             item {
-                PostDetailActions(post = post, postType = postType)
+                PostDetailActions(
+                    isLiked = isLiked,
+                    onLikeClick = { viewModel.togglePostLike() },
+                    onCommentClick = { /* Scroll to comment section */ },
+                    postType = postType
+                )
             }
 
-            // Comments Section Placeholder
+            // Comments Section
             item {
-                CommentsSectionPlaceholder()
+                CommentsSection(
+                    comments = comments,
+                    likedComments = likedComments,
+                    currentUserId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid,
+                    onAddComment = { text -> viewModel.addComment(text) },
+                    onDeleteComment = { commentId -> viewModel.deleteComment(commentId) },
+                    onLikeComment = { commentId -> viewModel.toggleCommentLike(commentId) }
+                )
             }
         }
     }
@@ -504,7 +533,7 @@ private fun PostDetailContent(post: Post, postType: PostType) {
 }
 
 @Composable
-private fun PostDetailMetrics(post: Post, postType: PostType) {
+private fun PostDetailMetrics(postStats: com.example.localconnect.data.repository.PostStats?, postType: PostType) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -520,19 +549,19 @@ private fun PostDetailMetrics(post: Post, postType: PostType) {
         ) {
             MetricColumn(
                 icon = if (postType == PostType.ISSUE) Icons.Default.ThumbUp else Icons.Default.Favorite,
-                count = post.likes,
+                count = postStats?.likes ?: 0,
                 label = if (postType == PostType.ISSUE) "Upvotes" else "Likes"
             )
 
             MetricColumn(
                 icon = Icons.AutoMirrored.Filled.Comment,
-                count = post.comments,
+                count = postStats?.comments ?: 0,
                 label = "Comments"
             )
 
             MetricColumn(
                 icon = Icons.Default.Visibility,
-                count = post.views,
+                count = postStats?.views ?: 0,
                 label = "Views"
             )
         }
@@ -565,7 +594,12 @@ private fun MetricColumn(icon: androidx.compose.ui.graphics.vector.ImageVector, 
 }
 
 @Composable
-private fun PostDetailActions(post: Post, postType: PostType) {
+private fun PostDetailActions(
+    isLiked: Boolean,
+    onLikeClick: () -> Unit,
+    onCommentClick: () -> Unit,
+    postType: PostType
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -573,8 +607,15 @@ private fun PostDetailActions(post: Post, postType: PostType) {
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Button(
-            onClick = { /* Upvote/Like action */ },
-            modifier = Modifier.weight(1f)
+            onClick = onLikeClick,
+            modifier = Modifier.weight(1f),
+            colors = if (isLiked) {
+                ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            } else {
+                ButtonDefaults.buttonColors()
+            }
         ) {
             Icon(
                 imageVector = if (postType == PostType.ISSUE) Icons.Default.ThumbUp else Icons.Default.Favorite,
@@ -582,11 +623,15 @@ private fun PostDetailActions(post: Post, postType: PostType) {
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text(if (postType == PostType.ISSUE) "Upvote" else "Like")
+            Text(if (postType == PostType.ISSUE) {
+                if (isLiked) "Upvoted" else "Upvote"
+            } else {
+                if (isLiked) "Liked" else "Like"
+            })
         }
 
         OutlinedButton(
-            onClick = { /* Comment action */ },
+            onClick = onCommentClick,
             modifier = Modifier.weight(1f)
         ) {
             Icon(
@@ -601,24 +646,184 @@ private fun PostDetailActions(post: Post, postType: PostType) {
 }
 
 @Composable
-private fun CommentsSectionPlaceholder() {
+private fun CommentsSection(
+    comments: List<com.example.localconnect.data.model.Comment>,
+    likedComments: Set<String>,
+    currentUserId: String?,
+    onAddComment: (String) -> Unit,
+    onDeleteComment: (String) -> Unit,
+    onLikeComment: (String) -> Unit
+) {
+    var commentText by remember { mutableStateOf("") }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp)
     ) {
         Text(
-            text = "Comments",
+            text = "Comments (${comments.size})",
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(12.dp))
-        Text(
-            text = "No comments yet. Be the first to comment!",
-            fontSize = 14.sp,
-            color = Color.Gray,
-            modifier = Modifier.padding(vertical = 32.dp)
+
+        // Comment input
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = commentText,
+                onValueChange = { commentText = it },
+                placeholder = { Text("Add a comment...") },
+                modifier = Modifier.weight(1f),
+                maxLines = 3
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            IconButton(
+                onClick = {
+                    if (commentText.isNotBlank()) {
+                        onAddComment(commentText)
+                        commentText = ""
+                    }
+                },
+                enabled = commentText.isNotBlank()
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Send,
+                    contentDescription = "Send comment",
+                    tint = if (commentText.isNotBlank())
+                        MaterialTheme.colorScheme.primary
+                    else
+                        Color.Gray
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Comments list
+        if (comments.isEmpty()) {
+            Text(
+                text = "No comments yet. Be the first to comment!",
+                fontSize = 14.sp,
+                color = Color.Gray,
+                modifier = Modifier.padding(vertical = 32.dp)
+            )
+        } else {
+            comments.forEach { comment ->
+                CommentItem(
+                    comment = comment,
+                    isLiked = likedComments.contains(comment.commentId),
+                    isOwnComment = comment.userId == currentUserId,
+                    onLikeClick = { onLikeComment(comment.commentId) },
+                    onDeleteClick = { onDeleteComment(comment.commentId) }
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommentItem(
+    comment: com.example.localconnect.data.model.Comment,
+    isLiked: Boolean,
+    isOwnComment: Boolean,
+    onLikeClick: () -> Unit,
+    onDeleteClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = comment.userName,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Text(
+                    text = formatDetailedTimeAgo(comment.timestamp),
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Comment text
+            Text(
+                text = comment.text,
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Actions
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Like button
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable(onClick = onLikeClick)
+                ) {
+                    Icon(
+                        imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = "Like",
+                        modifier = Modifier.size(18.dp),
+                        tint = if (isLiked) Color.Red else Color.Gray
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "${comment.likes}",
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                }
+
+                // Delete button (only for own comments)
+                if (isOwnComment) {
+                    IconButton(
+                        onClick = onDeleteClick,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Delete",
+                            tint = Color.Gray,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
