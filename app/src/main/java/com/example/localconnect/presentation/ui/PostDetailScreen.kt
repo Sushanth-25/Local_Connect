@@ -520,7 +520,7 @@ private fun PostDetailMetrics(post: Post, postType: PostType) {
         ) {
             MetricColumn(
                 icon = if (postType == PostType.ISSUE) Icons.Default.ThumbUp else Icons.Default.Favorite,
-                count = if (postType == PostType.ISSUE) post.upvotes else post.likes,
+                count = post.likes,
                 label = if (postType == PostType.ISSUE) "Upvotes" else "Likes"
             )
 

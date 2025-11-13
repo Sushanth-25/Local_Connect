@@ -364,7 +364,7 @@ private fun PostCardFooter(post: Post, postType: PostType, hasMedia: Boolean) {
             // Upvotes/Likes
             MetricItem(
                 icon = if (postType == PostType.ISSUE) Icons.Default.ThumbUp else Icons.Default.Favorite,
-                count = if (postType == PostType.ISSUE) post.upvotes else post.likes,
+                count = post.likes,
                 tint = if (postType == PostType.ISSUE) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFFE91E63)
             )
 

@@ -61,7 +61,7 @@ data class CommunityPost(
     val category: String,
     val type: PostType,
     val status: String,
-    val upvotes: Int,
+    val likes: Int,
     val comments: Int,
     val views: Int,
     val priority: Int = 0, // For issues - higher number = higher priority

@@ -114,7 +114,6 @@ class FirebasePostRepository : PostRepository {
                 "updatedAt" to sanitizedPost.updatedAt,
                 "likes" to sanitizedPost.likes,
                 "comments" to sanitizedPost.comments,
-                "upvotes" to sanitizedPost.upvotes,
                 "views" to sanitizedPost.views,
                 "priority" to sanitizedPost.priority,
                 "type" to sanitizedPost.type,
@@ -146,22 +145,6 @@ class FirebasePostRepository : PostRepository {
             Result.success(Unit)
         } catch (e: Exception) {
             println("Error liking post: ${e.message}")
-            Result.failure(e)
-        }
-    }
-
-    suspend fun upvotePost(postId: String): Result<Unit> {
-        return try {
-            val postRef = postsCollection.document(postId)
-            firestore.runTransaction { transaction ->
-                val snapshot = transaction.get(postRef)
-                val currentUpvotes = snapshot.getLong("upvotes") ?: 0L
-                transaction.update(postRef, "upvotes", currentUpvotes + 1)
-                transaction.update(postRef, "updatedAt", System.currentTimeMillis())
-            }.await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            println("Error upvoting post: ${e.message}")
             Result.failure(e)
         }
     }
