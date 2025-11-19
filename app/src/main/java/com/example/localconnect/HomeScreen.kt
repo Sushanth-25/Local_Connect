@@ -13,6 +13,10 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemKey
+import androidx.paging.LoadState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
@@ -172,9 +176,22 @@ fun HomeScreen(navController: NavHostController, postDetailViewModel: PostDetail
 
 
     // Load posts based on selected tab and handle location permission
-    LaunchedEffect(selectedTab) {
+    // Use paginated loading for optimal performance
+    LaunchedEffect(selectedTab, selectedCategory, selectedSort) {
         when (selectedTab) {
-            0 -> homeViewModel.loadPosts(context) // Explore - all posts with location filtering
+            0 -> {
+                // Explore - all posts with pagination (drastically reduces Firestore reads)
+                val sortField = when(selectedSort) {
+                    SortBy.RECENT -> "timestamp"
+                    SortBy.MOST_VOTED -> "likes"
+                    SortBy.MOST_VIEWED -> "views"
+                    SortBy.PRIORITY -> "priority"
+                }
+                homeViewModel.loadPostsPaginated(
+                    category = selectedCategory,
+                    sortBy = sortField
+                )
+            }
             1 -> {
                 // Local Community tab - check if user has location first
                 val userLocation = UserLocationManager.getUserLocation(context)
@@ -200,8 +217,18 @@ fun HomeScreen(navController: NavHostController, postDetailViewModel: PostDetail
                         )
                     }
                 } else {
-                    // User has location, load community posts
-                    homeViewModel.loadCommunityPosts(context)
+                    // User has location, load community posts with pagination
+                    val sortField = when(selectedSort) {
+                        SortBy.RECENT -> "timestamp"
+                        SortBy.MOST_VOTED -> "likes"
+                        SortBy.MOST_VIEWED -> "views"
+                        SortBy.PRIORITY -> "priority"
+                    }
+                    homeViewModel.loadCommunityPostsPaginated(
+                        context = context,
+                        category = selectedCategory,
+                        sortBy = sortField
+                    )
                 }
             }
         }
@@ -210,9 +237,15 @@ fun HomeScreen(navController: NavHostController, postDetailViewModel: PostDetail
     // Function to refresh posts based on current tab
     val refreshPosts = {
         Toast.makeText(context, "Refreshing posts...", Toast.LENGTH_SHORT).show()
+        val sortField = when(selectedSort) {
+            SortBy.RECENT -> "timestamp"
+            SortBy.MOST_VOTED -> "likes"
+            SortBy.MOST_VIEWED -> "views"
+            SortBy.PRIORITY -> "priority"
+        }
         when (selectedTab) {
-            0 -> homeViewModel.loadPosts(context)
-            1 -> homeViewModel.loadCommunityPosts(context)
+            0 -> homeViewModel.loadPostsPaginated(category = selectedCategory, sortBy = sortField)
+            1 -> homeViewModel.loadCommunityPostsPaginated(context, category = selectedCategory, sortBy = sortField)
         }
     }
 
@@ -284,15 +317,22 @@ fun HomeScreen(navController: NavHostController, postDetailViewModel: PostDetail
         // bottomBar and FAB are provided by MainActivity's shared Scaffold so they were removed from here to avoid duplication
 
     ) { paddingValues ->
-        // Replace nested static columns with a single LazyColumn so the whole screen (header, filters, posts, bottom nav)
-        // scrolls together. This preserves the previous behavior but makes the UI elements move up when the user scrolls.
+        // Collect paginated posts as LazyPagingItems for efficient lazy loading
         val listState = rememberLazyListState()
+        val paginatedPostsFlow = homeViewModel.paginatedPosts.collectAsState().value
+        val lazyPagingItems: LazyPagingItems<Post>? = paginatedPostsFlow?.collectAsLazyPagingItems()
+
+        // Fallback to legacy posts list if pagination is not being used
         val realPosts = homeUiState.posts
-        val filteredRealPosts: List<Post> = getFilteredRealPosts(
-            posts = realPosts,
-            category = selectedCategory,
-            localOnly = selectedTab == 1
-        )
+        val filteredRealPosts: List<Post> = if (homeUiState.usePagination) {
+            emptyList() // Don't use legacy list when paginating
+        } else {
+            getFilteredRealPosts(
+                posts = realPosts,
+                category = selectedCategory,
+                localOnly = selectedTab == 1
+            )
+        }
 
         // We'll compute a simple fade using the first visible item index and scroll offset
         // Avoid reading frequently-changing scroll state directly in the composition body.
@@ -431,8 +471,13 @@ fun HomeScreen(navController: NavHostController, postDetailViewModel: PostDetail
                        horizontalArrangement = Arrangement.SpaceBetween,
                        verticalAlignment = Alignment.CenterVertically
                    ) {
+                       val postCount = if (homeUiState.usePagination) {
+                           lazyPagingItems?.itemCount ?: 0
+                       } else {
+                           filteredRealPosts.size
+                       }
                        Text(
-                           text = "📍 Community Posts (${filteredRealPosts.size})",
+                           text = "📍 Community Posts" + if (postCount > 0) " ($postCount)" else "",
                            fontSize = 18.sp,
                            fontWeight = FontWeight.SemiBold
                        )
@@ -445,8 +490,167 @@ fun HomeScreen(navController: NavHostController, postDetailViewModel: PostDetail
                    }
                }
 
-               // Posts list (each post is an item)
-               if (homeUiState.isLoading && realPosts.isEmpty()) {
+               // Posts list (each post is an item) - uses pagination for efficiency
+               if (homeUiState.usePagination && lazyPagingItems != null) {
+                   // Handle loading state
+                   if (lazyPagingItems.loadState.refresh is LoadState.Loading) {
+                       item {
+                           Box(
+                               modifier = Modifier.fillMaxWidth().padding(16.dp),
+                               contentAlignment = Alignment.Center
+                           ) {
+                               CircularProgressIndicator()
+                           }
+                       }
+                   }
+
+                   // Handle empty state
+                   if (lazyPagingItems.loadState.refresh is LoadState.NotLoading && lazyPagingItems.itemCount == 0) {
+                       item {
+                           Card(
+                               modifier = Modifier.fillMaxWidth(),
+                               colors = CardDefaults.cardColors(
+                                   containerColor = if (selectedTab == 1 && homeUiState.needsLocationForCommunity)
+                                       MaterialTheme.colorScheme.errorContainer
+                                   else
+                                       MaterialTheme.colorScheme.surfaceVariant
+                               )
+                           ) {
+                               Column(
+                                   modifier = Modifier.padding(24.dp),
+                                   horizontalAlignment = Alignment.CenterHorizontally
+                               ) {
+                                   Icon(
+                                       imageVector = if (selectedTab == 1 && homeUiState.needsLocationForCommunity)
+                                           Icons.Default.LocationOff
+                                       else
+                                           Icons.Default.PostAdd,
+                                       contentDescription = null,
+                                       modifier = Modifier.size(48.dp),
+                                       tint = if (selectedTab == 1 && homeUiState.needsLocationForCommunity)
+                                           MaterialTheme.colorScheme.onErrorContainer
+                                       else
+                                           MaterialTheme.colorScheme.onSurfaceVariant
+                                   )
+                                   Spacer(modifier = Modifier.height(8.dp))
+                                   Text(
+                                       text = if (selectedTab == 1 && homeUiState.needsLocationForCommunity)
+                                           "Location Required"
+                                       else
+                                           "No posts yet",
+                                       style = MaterialTheme.typography.titleMedium,
+                                       color = if (selectedTab == 1 && homeUiState.needsLocationForCommunity)
+                                           MaterialTheme.colorScheme.onErrorContainer
+                                       else
+                                           MaterialTheme.colorScheme.onSurfaceVariant
+                                   )
+                                   Text(
+                                       text = if (selectedTab == 1 && homeUiState.needsLocationForCommunity)
+                                           "Please enable location permission to see posts within 30km of your location"
+                                       else if (selectedTab == 1)
+                                           "No posts found within 30km of your location. Try the Explore tab!"
+                                       else
+                                           "Be the first to share something with your community!",
+                                       style = MaterialTheme.typography.bodySmall,
+                                       color = if (selectedTab == 1 && homeUiState.needsLocationForCommunity)
+                                           MaterialTheme.colorScheme.onErrorContainer
+                                       else
+                                           MaterialTheme.colorScheme.onSurfaceVariant,
+                                       textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                   )
+
+                                   if (selectedTab == 1 && homeUiState.needsLocationForCommunity) {
+                                       Spacer(modifier = Modifier.height(16.dp))
+                                       Button(
+                                           onClick = {
+                                               locationPermissionLauncher.launch(
+                                                   arrayOf(
+                                                       Manifest.permission.ACCESS_FINE_LOCATION,
+                                                       Manifest.permission.ACCESS_COARSE_LOCATION
+                                                   )
+                                               )
+                                           }
+                                       ) {
+                                           Icon(Icons.Default.LocationOn, contentDescription = null)
+                                           Spacer(modifier = Modifier.width(8.dp))
+                                           Text("Enable Location")
+                                       }
+                                   }
+                               }
+                           }
+                       }
+                   }
+
+                   // Render paginated posts
+                   items(
+                       count = lazyPagingItems.itemCount,
+                       key = lazyPagingItems.itemKey { post -> post.postId }
+                   ) { index ->
+                       val post = lazyPagingItems[index]
+                       if (post != null) {
+                           RealPostCard(
+                               post = post,
+                               modifier = Modifier.fillMaxWidth(),
+                               onClick = {
+                                   postDetailViewModel.setSelectedPost(post)
+                                   navController.navigate("post_detail/${post.postId}")
+                               }
+                           )
+                       }
+                   }
+
+                   // Show loading indicator at bottom when loading more
+                   if (lazyPagingItems.loadState.append is LoadState.Loading) {
+                       item {
+                           Box(
+                               modifier = Modifier.fillMaxWidth().padding(16.dp),
+                               contentAlignment = Alignment.Center
+                           ) {
+                               CircularProgressIndicator()
+                           }
+                       }
+                   }
+
+                   // Handle error state
+                   if (lazyPagingItems.loadState.refresh is LoadState.Error) {
+                       item {
+                           Card(
+                               modifier = Modifier.fillMaxWidth(),
+                               colors = CardDefaults.cardColors(
+                                   containerColor = MaterialTheme.colorScheme.errorContainer
+                               )
+                           ) {
+                               Column(
+                                   modifier = Modifier.padding(24.dp),
+                                   horizontalAlignment = Alignment.CenterHorizontally
+                               ) {
+                                   Icon(
+                                       Icons.Default.Error,
+                                       contentDescription = null,
+                                       modifier = Modifier.size(48.dp),
+                                       tint = MaterialTheme.colorScheme.onErrorContainer
+                                   )
+                                   Spacer(modifier = Modifier.height(8.dp))
+                                   Text(
+                                       text = "Error loading posts",
+                                       style = MaterialTheme.typography.titleMedium,
+                                       color = MaterialTheme.colorScheme.onErrorContainer
+                                   )
+                                   Text(
+                                       text = (lazyPagingItems.loadState.refresh as LoadState.Error).error.message ?: "Unknown error",
+                                       style = MaterialTheme.typography.bodySmall,
+                                       color = MaterialTheme.colorScheme.onErrorContainer,
+                                       textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                   )
+                                   Spacer(modifier = Modifier.height(16.dp))
+                                   Button(onClick = { lazyPagingItems.retry() }) {
+                                       Text("Retry")
+                                   }
+                               }
+                           }
+                       }
+                   }
+               } else if (homeUiState.isLoading && realPosts.isEmpty()) {
                    item {
                        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                            CircularProgressIndicator()

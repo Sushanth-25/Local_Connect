@@ -77,6 +77,10 @@ dependencies {
     // Compose Navigation
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
+    // Paging 3 for efficient lazy loading
+    implementation("androidx.paging:paging-runtime-ktx:3.2.1")
+    implementation("androidx.paging:paging-compose:3.2.1")
+
     // Splash Screen
     implementation("androidx.core:core-splashscreen:1.0.1")
 

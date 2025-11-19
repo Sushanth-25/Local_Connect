@@ -40,15 +40,31 @@ service cloud.firestore {
 
     // Posts collection rules
     match /posts/{postId} {
-      // Anyone can read posts
-      allow read: if true;
+      // Anyone can read posts (optimized for pagination)
+      // List queries limited to prevent abuse
+      allow list: if true && request.query.limit <= 100;
+
+      // Single document reads always allowed
+      allow get: if true;
 
       // Only authenticated users can create posts
+      // Validate required fields for pagination to work
       allow create: if isSignedIn()
-        && request.resource.data.userId == request.auth.uid;
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.postId is string
+        && request.resource.data.timestamp is number
+        && request.resource.data.latitude is number
+        && request.resource.data.longitude is number
+        && request.resource.data.locationName is string;
 
       // Only post owner can update/delete
-      allow update, delete: if isSignedIn()
+      // Prevent changing immutable fields
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.postId == resource.data.postId;
+
+      allow delete: if isSignedIn()
         && resource.data.userId == request.auth.uid;
 
       // ===== POST LIKES SUBCOLLECTION =====

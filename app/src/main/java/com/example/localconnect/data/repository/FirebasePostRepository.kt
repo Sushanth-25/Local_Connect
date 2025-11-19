@@ -1,7 +1,11 @@
 package com.example.localconnect.data.repository
 
 import android.util.Log
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
 import com.example.localconnect.data.model.Post
+import com.example.localconnect.data.paging.PostsPagingSource
 import com.example.localconnect.repository.PostRepository
 import com.example.localconnect.util.LocationUtils
 import com.google.firebase.firestore.FirebaseFirestore
@@ -521,6 +525,79 @@ class FirebasePostRepository : PostRepository {
             println("Error fetching local posts: ${e.message}")
             emptyList()
         }
+    }
+
+    /**
+     * Get paginated posts for Explore tab (all posts)
+     * This drastically reduces Firestore reads by only loading what's visible
+     *
+     * @param pageSize Number of posts per page (default 20)
+     * @param category Filter by category (optional)
+     * @param sortBy Sort field: "timestamp", "likes", "views", "priority"
+     * @return Flow of PagingData that automatically loads more as user scrolls
+     */
+    fun getPostsPaginated(
+        pageSize: Int = 20,
+        category: String? = null,
+        sortBy: String = "timestamp"
+    ): Flow<PagingData<Post>> {
+        Log.d(TAG, "Creating paginated posts flow: pageSize=$pageSize, category=$category, sortBy=$sortBy")
+        return Pager(
+            config = PagingConfig(
+                pageSize = pageSize,
+                enablePlaceholders = false,
+                initialLoadSize = pageSize * 2 // Load 2 pages initially for smooth scrolling
+            ),
+            pagingSourceFactory = {
+                PostsPagingSource(
+                    firestore = firestore,
+                    pageSize = pageSize,
+                    category = category,
+                    sortBy = sortBy
+                )
+            }
+        ).flow
+    }
+
+    /**
+     * Get paginated community posts with location filtering
+     * Only loads posts within specified radius as user scrolls
+     *
+     * @param userLat User's latitude
+     * @param userLon User's longitude
+     * @param radiusKm Radius in kilometers (default 30km)
+     * @param pageSize Number of posts per page (default 20)
+     * @param category Filter by category (optional)
+     * @param sortBy Sort field: "timestamp", "likes", "views", "priority"
+     * @return Flow of PagingData with location-filtered posts
+     */
+    fun getCommunityPostsPaginated(
+        userLat: Double,
+        userLon: Double,
+        radiusKm: Double = 30.0,
+        pageSize: Int = 20,
+        category: String? = null,
+        sortBy: String = "timestamp"
+    ): Flow<PagingData<Post>> {
+        Log.d(TAG, "Creating paginated community posts flow: location=($userLat,$userLon), radius=${radiusKm}km")
+        return Pager(
+            config = PagingConfig(
+                pageSize = pageSize,
+                enablePlaceholders = false,
+                initialLoadSize = pageSize * 2
+            ),
+            pagingSourceFactory = {
+                PostsPagingSource(
+                    firestore = firestore,
+                    pageSize = pageSize,
+                    userLat = userLat,
+                    userLon = userLon,
+                    radiusKm = radiusKm,
+                    category = category,
+                    sortBy = sortBy
+                )
+            }
+        ).flow
     }
 }
 
