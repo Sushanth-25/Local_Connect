@@ -12,6 +12,32 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
 
+    // ================================
+    //            USERS
+    // ================================
+    match /users/{userId} {
+      // Anyone can read user profiles (for displaying profile info on posts, comments, etc.)
+      allow read: if true;
+
+      // Users can create their own profile during registration
+      allow create: if isSignedIn()
+        && userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid;
+
+      // Users can only update their own profile
+      // Allow updates if:
+      // 1. User is authenticated and updating their own document
+      // 2. If userId field exists in the update, it must match the existing one
+      allow update: if isSignedIn()
+        && userId == request.auth.uid
+        && (!request.resource.data.keys().hasAny(['userId'])
+            || request.resource.data.userId == resource.data.userId);
+
+      // Users can delete their own profile
+      allow delete: if isSignedIn()
+        && userId == request.auth.uid;
+    }
+
     // Posts collection rules
     match /posts/{postId} {
       // Anyone can read posts
