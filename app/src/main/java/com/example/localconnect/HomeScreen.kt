@@ -22,7 +22,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
@@ -49,6 +48,7 @@ import kotlinx.coroutines.delay
 import com.example.localconnect.presentation.viewmodel.PostDetailViewModel
 import android.location.Geocoder
 import java.util.Locale
+import com.example.localconnect.ui.components.PostListSkeleton
 
 enum class PostType {
     ISSUE, CELEBRATION, GENERAL, LOST_FOUND
@@ -492,15 +492,12 @@ fun HomeScreen(navController: NavHostController, postDetailViewModel: PostDetail
 
                // Posts list (each post is an item) - uses pagination for efficiency
                if (homeUiState.usePagination && lazyPagingItems != null) {
-                   // Handle loading state
+                   // Handle loading state with skeleton screens (better perceived performance)
                    if (lazyPagingItems.loadState.refresh is LoadState.Loading) {
-                       item {
-                           Box(
-                               modifier = Modifier.fillMaxWidth().padding(16.dp),
-                               contentAlignment = Alignment.Center
-                           ) {
-                               CircularProgressIndicator()
-                           }
+                       items(5) { // Show 5 skeleton cards
+                           com.example.localconnect.ui.components.PostCardSkeleton(
+                               showImage = it % 2 == 0 // Alternate with/without images
+                           )
                        }
                    }
 

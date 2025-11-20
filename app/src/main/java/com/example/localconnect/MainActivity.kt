@@ -33,9 +33,17 @@ import com.example.localconnect.util.PermissionUtils
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.localconnect.presentation.ui.MyPostsScreen
 import com.example.localconnect.presentation.viewmodel.PostDetailViewModel
+import com.example.localconnect.util.ImageLoaderConfig
+import coil.ImageLoader
+import coil.ImageLoaderFactory
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), ImageLoaderFactory {
     private var isAuthFinished = false
+
+    // Implement ImageLoaderFactory to provide optimized ImageLoader
+    override fun newImageLoader(): ImageLoader {
+        return ImageLoaderConfig.createImageLoader(this)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
