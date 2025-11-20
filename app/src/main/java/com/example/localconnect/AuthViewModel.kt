@@ -184,6 +184,7 @@ class AuthViewModel : ViewModel() {
 
     private fun saveUserProfile(uid: String, name: String, email: String, isVerified: Boolean = false) {
         val userMap = mapOf(
+            "userId" to uid,  // ✅ Required by Firestore rules
             "name" to name,
             "email" to email,
             "emailVerified" to isVerified,
@@ -193,9 +194,13 @@ class AuthViewModel : ViewModel() {
         firestore.collection("users").document(uid)
             .set(userMap)
             .addOnSuccessListener {
-                android.util.Log.d("AuthViewModel", "User profile saved successfully")
+                android.util.Log.d("AuthViewModel", "User profile saved successfully for uid: $uid")
                 if (_authResult.value != AuthResult.EmailVerificationSent) {
+                    android.util.Log.d("AuthViewModel", "Setting AuthResult to Success")
                     _authResult.value = AuthResult.Success
+                    android.util.Log.d("AuthViewModel", "AuthResult is now: ${_authResult.value}")
+                } else {
+                    android.util.Log.d("AuthViewModel", "Skipping Success state because EmailVerificationSent is set")
                 }
             }
             .addOnFailureListener { e ->

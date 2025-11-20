@@ -54,6 +54,10 @@ fun SignupScreen(
     val coroutineScope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
 
+    // State for error messages
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var showErrorDialog by remember { mutableStateOf(false) }
+
     // Google Sign-In launcher
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         Log.d(TAG, "Google Sign-In result received with result code: ${result.resultCode}")
@@ -75,41 +79,74 @@ fun SignupScreen(
                     viewModel.signInWithGoogle(credential)
                 } else {
                     Log.e(TAG, "Google Sign In failed: ID token is null")
+                    errorMessage = "Google Sign-In failed: Could not get authentication token. Please try again."
+                    showErrorDialog = true
                 }
             } catch (e: ApiException) {
                 Log.e(TAG, "Google Sign In failed with status code: ${e.statusCode}, message: ${e.message}", e)
-                // Handle specific error codes
-                when (e.statusCode) {
-                    12501 -> Log.e(TAG, "User cancelled the sign-in")
-                    7 -> Log.e(TAG, "Network error")
-                    8 -> Log.e(TAG, "Internal error")
-                    10 -> Log.e(TAG, "Developer error - check configuration")
-                    else -> Log.e(TAG, "Unknown Google Sign-In error: ${e.statusCode}")
+                // Handle specific error codes with user-friendly messages
+                errorMessage = when (e.statusCode) {
+                    12501 -> null // User cancelled - don't show error
+                    7 -> "Network error. Please check your internet connection and try again."
+                    8 -> "Internal error. Please try again later."
+                    10 -> {
+                        Log.e(TAG, "CRITICAL: Developer error - SHA-1 certificate not configured or mismatch!")
+                        "Configuration error. Please contact support.\n\nError: SHA-1 certificate mismatch or not configured in Firebase.\n\nSteps to fix:\n1. Run: gradlew signingReport\n2. Copy SHA-1 fingerprint\n3. Add to Firebase Console\n4. Download new google-services.json"
+                    }
+                    16 -> "Could not connect to Google services. Please ensure Google Play Services is updated."
+                    else -> "Google Sign-In failed (Error ${e.statusCode}). Please try again or use email signup."
+                }
+                if (errorMessage != null) {
+                    showErrorDialog = true
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Google Sign In unknown error", e)
+                errorMessage = "Unexpected error during Google Sign-In: ${e.message}"
+                showErrorDialog = true
             }
         } else if (result.resultCode == android.app.Activity.RESULT_CANCELED) {
             Log.d(TAG, "Google Sign-In was cancelled by user")
+            // Don't show error for user cancellation
         } else {
             Log.e(TAG, "Google Sign-In failed with result code: ${result.resultCode}")
+            errorMessage = "Google Sign-In failed. Please try again."
+            showErrorDialog = true
         }
     }
 
     // Observe authResult for successful signup and navigate
     LaunchedEffect(authResult) {
-        android.util.Log.d("SignupScreen", "Auth result changed: $authResult")
+        android.util.Log.d(TAG, "=== LaunchedEffect triggered ===")
+        android.util.Log.d(TAG, "Auth result changed to: $authResult")
+        android.util.Log.d(TAG, "Auth result type: ${authResult.javaClass.simpleName}")
+
         when (authResult) {
             is AuthResult.Success -> {
-                android.util.Log.d("SignupScreen", "Auth success detected! Navigating to home...")
+                android.util.Log.d(TAG, "✅ SUCCESS STATE DETECTED!")
+                android.widget.Toast.makeText(context, "Sign-in successful! Redirecting...", android.widget.Toast.LENGTH_SHORT).show()
+                android.util.Log.d(TAG, "Calling onNavigateToHome()...")
+                onNavigateToHome()
+                android.util.Log.d(TAG, "Navigation callback executed")
                 viewModel.resetState()
-                onNavigateToHome() // Navigate directly to home for successful authentication
+                android.util.Log.d(TAG, "ViewModel state reset")
             }
             is AuthResult.EmailVerificationSent -> {
-                android.util.Log.d("SignupScreen", "Email verification sent! Navigating to verification screen...")
+                android.util.Log.d(TAG, "📧 Email verification sent! Navigating to verification screen...")
                 onNavigateToEmailVerification(email)
             }
-            else -> { /* Handle other states */ }
+            is AuthResult.Loading -> {
+                android.util.Log.d(TAG, "⏳ Loading state...")
+            }
+            is AuthResult.Error -> {
+                android.util.Log.d(TAG, "❌ Error state: ${(authResult as AuthResult.Error).message}")
+                android.widget.Toast.makeText(context, "Sign-in failed: ${(authResult as AuthResult.Error).message}", android.widget.Toast.LENGTH_LONG).show()
+            }
+            is AuthResult.Idle -> {
+                android.util.Log.d(TAG, "💤 Idle state")
+            }
+            else -> {
+                android.util.Log.d(TAG, "Unknown state: $authResult")
+            }
         }
     }
 
