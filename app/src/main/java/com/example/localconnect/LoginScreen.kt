@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
@@ -30,6 +31,7 @@ fun LoginScreen(
     onNavigateToSignup: () -> Unit,
     onLoginSuccess: () -> Unit,
     onEmailNotVerified: (String) -> Unit, // Add parameter for email verification navigation
+    onNavigateToStaffLogin: () -> Unit = {}, // Add staff login navigation
     viewModel: AuthViewModel = viewModel()
 ) {
     var email by remember { mutableStateOf("") }
@@ -168,6 +170,27 @@ fun LoginScreen(
 
             TextButton(onClick = onNavigateToSignup) {
                 Text("Don't have an account? Sign up")
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+            // Staff Login Button
+            OutlinedButton(
+                onClick = onNavigateToStaffLogin,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Color(0xFF1976D2)
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Badge,
+                    contentDescription = "Staff Login",
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Staff Login", fontWeight = FontWeight.Bold)
             }
         }
     }

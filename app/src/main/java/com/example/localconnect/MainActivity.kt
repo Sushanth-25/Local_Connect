@@ -188,7 +188,27 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
                         LoginScreen(
                             onNavigateToSignup = { navController.navigate("signup") },
                             onLoginSuccess = { navController.navigate("home"){ popUpTo("login") { inclusive = true } } },
-                            onEmailNotVerified = { email -> navController.navigate("email_verification/$email") }
+                            onEmailNotVerified = { email -> navController.navigate("email_verification/$email") },
+                            onNavigateToStaffLogin = { navController.navigate("staff_login") }
+                        )
+                    }
+                    composable("staff_login") {
+                        com.example.localconnect.presentation.staff.StaffLoginScreen(
+                            onNavigateBack = { navController.popBackStack() },
+                            onLoginSuccess = {
+                                navController.navigate("staff_dashboard") {
+                                    popUpTo("staff_login") { inclusive = true }
+                                }
+                            }
+                        )
+                    }
+                    composable("staff_dashboard") {
+                        com.example.localconnect.presentation.staff.StaffDashboardScreen(
+                            onNavigateBack = {
+                                navController.navigate("login") {
+                                    popUpTo(0) { inclusive = true }
+                                }
+                            }
                         )
                     }
                     composable("signup") {
