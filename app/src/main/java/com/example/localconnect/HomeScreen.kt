@@ -177,7 +177,7 @@ fun HomeScreen(navController: NavHostController, postDetailViewModel: PostDetail
 
     // Load posts based on selected tab and handle location permission
     // Use paginated loading for optimal performance
-    LaunchedEffect(selectedTab, selectedCategory, selectedSort) {
+    LaunchedEffect(selectedTab) {
         when (selectedTab) {
             0 -> {
                 // Explore - all posts with pagination (drastically reduces Firestore reads)
@@ -334,13 +334,6 @@ fun HomeScreen(navController: NavHostController, postDetailViewModel: PostDetail
             )
         }
 
-        // We'll compute a simple fade using the first visible item index and scroll offset
-        // Avoid reading frequently-changing scroll state directly in the composition body.
-        // Use derivedStateOf so recompositions happen only when these values change.
-        val scrollInfo by remember {
-            derivedStateOf { Pair(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) }
-        }
-
         // Wrap posts area in a Box with pullRefresh so users can pull down to refresh the list.
         val pullRefreshState = rememberPullRefreshState(isRefreshing, { isRefreshing = true })
 
@@ -379,18 +372,7 @@ fun HomeScreen(navController: NavHostController, postDetailViewModel: PostDetail
 
                 // Header card + filters + quick actions
                 item {
-                   // Fade header smoothly as user scrolls; keep a faint minimum alpha so it doesn't fully disappear.
-                   val (firstIndex, firstOffset) = scrollInfo
-                   val fadeDistanceHeader = 300f
-                   val minAlpha = 0.12f
-                   val headerIndex = 1 // header block is the second item (index 1) in the LazyColumn
-                   val headerAlpha = when {
-                       firstIndex > headerIndex -> minAlpha
-                       firstIndex == headerIndex -> ((1f - (firstOffset / fadeDistanceHeader)).coerceIn(minAlpha, 1f))
-                       else -> 1f
-                   }
-
-                   Column(modifier = Modifier.fillMaxWidth().graphicsLayer(alpha = headerAlpha)) {
+                   Column(modifier = Modifier.fillMaxWidth()) {
                         Spacer(modifier = Modifier.height(12.dp))
 
                         Card(
@@ -422,7 +404,10 @@ fun HomeScreen(navController: NavHostController, postDetailViewModel: PostDetail
 
                         EnhancedFilterBar(
                             selectedSort = selectedSort,
-                            onSortSelected = { selectedSort = it }
+                            onSortSelected = {
+                                selectedSort = it
+                                refreshPosts()
+                            }
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
@@ -458,6 +443,7 @@ fun HomeScreen(navController: NavHostController, postDetailViewModel: PostDetail
                                     } else {
                                         selectedCategory = label
                                     }
+                                    refreshPosts()
                                 }
                             }
                         }
