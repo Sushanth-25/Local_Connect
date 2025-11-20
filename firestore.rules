@@ -12,22 +12,31 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
 
+    // Helper function to check if user is staff
+    function isStaff() {
+      return request.auth != null && request.auth.token.staff == true;
+    }
+
+    // Helper function to check if update is only changing counters (likes, views, comments)
+    function isCounterUpdate() {
+      let allowedFields = ['likes', 'views', 'comments', 'updatedAt'];
+      let changedFields = request.resource.data.diff(resource.data).affectedKeys();
+      return changedFields.hasOnly(allowedFields);
+    }
+
     // ================================
     //            USERS
     // ================================
     match /users/{userId} {
-      // Anyone can read user profiles (for displaying profile info on posts, comments, etc.)
-      allow read: if true;
+      // Anyone authenticated can read user profiles
+      allow read: if isSignedIn();
 
-      // Users can create their own profile during registration
+      // Users can create their own profile
       allow create: if isSignedIn()
         && userId == request.auth.uid
         && request.resource.data.userId == request.auth.uid;
 
-      // Users can only update their own profile
-      // Allow updates if:
-      // 1. User is authenticated and updating their own document
-      // 2. If userId field exists in the update, it must match the existing one
+      // Users can update their own profile
       allow update: if isSignedIn()
         && userId == request.auth.uid
         && (!request.resource.data.keys().hasAny(['userId'])
@@ -38,75 +47,59 @@ service cloud.firestore {
         && userId == request.auth.uid;
     }
 
-    // Posts collection rules
+    // ================================
+    //            POSTS
+    // ================================
     match /posts/{postId} {
-      // Anyone can read posts (optimized for pagination)
-      // List queries limited to prevent abuse
-      allow list: if true && request.query.limit <= 100;
+      // ✅ All authenticated users can list and read posts
+      allow list: if isSignedIn();
+      allow get: if isSignedIn();
 
-      // Single document reads always allowed
-      allow get: if true;
-
-      // Only authenticated users can create posts
-      // Validate required fields for pagination to work
+      // Users can create posts with required fields
       allow create: if isSignedIn()
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.postId is string
         && request.resource.data.timestamp is number
         && request.resource.data.latitude is number
         && request.resource.data.longitude is number
-        && request.resource.data.locationName is string;
+        && request.resource.data.locationName is string
+        && request.resource.data.locationName.size() > 0;
 
-      // Only post owner can update/delete
-      // Prevent changing immutable fields
-      allow update: if isSignedIn()
-        && resource.data.userId == request.auth.uid
-        && request.resource.data.userId == resource.data.userId
-        && request.resource.data.postId == resource.data.postId;
+      // ✅ Owner can update their own post OR Staff can update any post
+      // ✅ Any authenticated user can update like/view/comment counters only
+      allow update: if isSignedIn() && (
+        (resource.data.userId == request.auth.uid
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.postId == resource.data.postId)
+        || isStaff()
+        || isCounterUpdate()
+      );
 
-      allow delete: if isSignedIn()
-        && resource.data.userId == request.auth.uid;
+      // ✅ Owner can delete their own post OR Staff can delete any post
+      allow delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid
+        || isStaff()
+      );
 
       // ===== POST LIKES SUBCOLLECTION =====
-      // Structure: /posts/{postId}/likes/{userId}
       match /likes/{userId} {
-        // Anyone can read likes (to show who liked)
-        allow read: if true;
-
-        // User can only create/delete their own like
-        allow create: if isSignedIn()
-          && userId == request.auth.uid
-          && request.resource.data.userId == request.auth.uid;
-
-        allow delete: if isSignedIn()
-          && userId == request.auth.uid;
-
-        // Updates not allowed - only create/delete
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && userId == request.auth.uid;
+        allow delete: if isSignedIn() && userId == request.auth.uid;
         allow update: if false;
       }
 
       // ===== POST VIEWS SUBCOLLECTION =====
-      // Structure: /posts/{postId}/views/{userId}
       match /views/{userId} {
-        // Anyone can read views count
-        allow read: if true;
-
-        // User can only create their own view (once)
-        allow create: if isSignedIn()
-          && userId == request.auth.uid
-          && request.resource.data.userId == request.auth.uid;
-
-        // Cannot delete or update views
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && userId == request.auth.uid;
         allow delete, update: if false;
       }
 
       // ===== COMMENTS SUBCOLLECTION =====
-      // Structure: /posts/{postId}/comments/{commentId}
       match /comments/{commentId} {
-        // Anyone can read comments
-        allow read: if true;
+        allow read: if isSignedIn();
 
-        // Authenticated users can create comments
         allow create: if isSignedIn()
           && request.resource.data.userId == request.auth.uid
           && request.resource.data.postId == postId
@@ -114,36 +107,48 @@ service cloud.firestore {
           && request.resource.data.text.size() > 0
           && request.resource.data.text.size() <= 1000;
 
-        // Only comment owner can update their comment
-        allow update: if isSignedIn()
-          && resource.data.userId == request.auth.uid
-          && request.resource.data.userId == resource.data.userId
-          && request.resource.data.postId == resource.data.postId;
+        // ✅ Owner can update OR Staff can update
+        // ✅ Any authenticated user can update like counters only
+        allow update: if isSignedIn() && (
+          (resource.data.userId == request.auth.uid
+            && request.resource.data.userId == resource.data.userId
+            && request.resource.data.postId == resource.data.postId)
+          || isStaff()
+          || isCommentCounterUpdate()
+        );
 
-        // Comment owner or post owner can delete comments
-        allow delete: if isSignedIn()
-          && (resource.data.userId == request.auth.uid
-              || get(/databases/$(database)/documents/posts/$(postId)).data.userId == request.auth.uid);
+        // Helper function to check if update is only changing comment likes counter
+        function isCommentCounterUpdate() {
+          let allowedFields = ['likes'];
+          let changedFields = request.resource.data.diff(resource.data).affectedKeys();
+          return changedFields.hasOnly(allowedFields);
+        }
+
+        // ✅ Comment owner, post owner, or staff can delete
+        allow delete: if isSignedIn() && (
+          resource.data.userId == request.auth.uid
+          || get(/databases/$(database)/documents/posts/$(postId)).data.userId == request.auth.uid
+          || isStaff()
+        );
 
         // ===== COMMENT LIKES SUBCOLLECTION =====
-        // Structure: /posts/{postId}/comments/{commentId}/likes/{userId}
         match /likes/{userId} {
-          // Anyone can read comment likes
-          allow read: if true;
-
-          // User can only create/delete their own comment like
-          allow create: if isSignedIn()
-            && userId == request.auth.uid
-            && request.resource.data.userId == request.auth.uid;
-
-          allow delete: if isSignedIn()
-            && userId == request.auth.uid;
-
-          // Updates not allowed - only create/delete
+          allow read: if isSignedIn();
+          allow create: if isSignedIn() && userId == request.auth.uid;
+          allow delete: if isSignedIn() && userId == request.auth.uid;
           allow update: if false;
         }
       }
     }
+
+    // ================================
+    //      AUDIT LOGS (OPTIONAL)
+    // ================================
+    // Track staff actions for monitoring and compliance
+    match /audit_logs/{logId} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+      allow update, delete: if false;
+    }
   }
 }
-
