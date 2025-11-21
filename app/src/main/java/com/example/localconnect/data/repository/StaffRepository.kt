@@ -91,18 +91,35 @@ class StaffRepository {
                 return Result.failure(Exception("Unauthorized: User is not staff"))
             }
 
-            val snapshot = firestore.collection("posts")
-                .whereEqualTo("status", status)
-                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
-                .get()
-                .await()
+            // Try with ordering first, if it fails due to missing index, fallback to client-side sorting
+            val posts = try {
+                val snapshot = firestore.collection("posts")
+                    .whereEqualTo("status", status)
+                    .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                    .get()
+                    .await()
 
-            val posts = snapshot.documents.mapNotNull { doc ->
-                try {
-                    doc.toObject(Post::class.java)
-                } catch (e: Exception) {
-                    null
+                snapshot.documents.mapNotNull { doc ->
+                    try {
+                        doc.toObject(Post::class.java)
+                    } catch (e: Exception) {
+                        null
+                    }
                 }
+            } catch (e: Exception) {
+                // If ordering fails (missing index), fetch without ordering and sort client-side
+                val snapshot = firestore.collection("posts")
+                    .whereEqualTo("status", status)
+                    .get()
+                    .await()
+
+                snapshot.documents.mapNotNull { doc ->
+                    try {
+                        doc.toObject(Post::class.java)
+                    } catch (e: Exception) {
+                        null
+                    }
+                }.sortedByDescending { it.timestamp ?: 0L }
             }
 
             Result.success(posts)
@@ -138,4 +155,3 @@ class StaffRepository {
         }
     }
 }
-
