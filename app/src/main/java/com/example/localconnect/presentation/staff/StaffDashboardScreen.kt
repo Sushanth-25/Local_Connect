@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -27,11 +26,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.SubcomposeAsyncImage
 import com.example.localconnect.data.model.Comment
 import com.example.localconnect.data.model.Post
 import com.example.localconnect.data.model.PostType
+import com.example.localconnect.util.MapUtils
 import com.example.localconnect.viewmodel.PostUpdateState
 import com.example.localconnect.viewmodel.StaffViewModel
 import com.google.firebase.firestore.FirebaseFirestore
@@ -337,7 +338,7 @@ fun StaffDashboardScreen(
                                             selectedFilters = setOf()
                                         }
                                     )
-                                    Divider(modifier = Modifier.padding(vertical = 4.dp))
+                                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                                 }
 
                                 // Status Filters Section
@@ -414,7 +415,7 @@ fun StaffDashboardScreen(
                                     }
                                 )
 
-                                Divider(modifier = Modifier.padding(vertical = 4.dp))
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
                                 // Type Filters Section
                                 Text(
@@ -766,7 +767,7 @@ fun StaffPostCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Divider()
+            HorizontalDivider()
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -920,7 +921,6 @@ fun CommentsDialog(
 ) {
     var comments by remember { mutableStateOf<List<Comment>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    val scope = rememberCoroutineScope()
     val firestore = FirebaseFirestore.getInstance()
 
     // Get screen configuration for responsive sizing
@@ -946,7 +946,7 @@ fun CommentsDialog(
             comments = commentsSnapshot.documents.mapNotNull { doc ->
                 doc.toObject(Comment::class.java)
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // Handle error silently or show toast
         } finally {
             isLoading = false
@@ -1051,7 +1051,7 @@ fun CommentsDialog(
                     }
                 }
 
-                Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
 
                 // Comments List
                 if (isLoading) {
@@ -1353,14 +1353,12 @@ fun ExpandedPostDialog(
     var userName by remember { mutableStateOf("Loading...") }
     var userPhoneNumber by remember { mutableStateOf<String?>(null) }
     var userProfileUrl by remember { mutableStateOf<String?>(null) }
-    var isLoadingUser by remember { mutableStateOf(true) }
 
     // Current image index for multiple images
     var currentImageIndex by remember { mutableStateOf(0) }
 
     // Fetch user data
     LaunchedEffect(post.userId) {
-        isLoadingUser = true
         try {
             val userDoc = firestore.collection("users")
                 .document(post.userId)
@@ -1370,10 +1368,8 @@ fun ExpandedPostDialog(
             userName = userDoc.getString("name") ?: "Unknown User"
             userPhoneNumber = userDoc.getString("phoneNumber")
             userProfileUrl = userDoc.getString("profileImage")
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             userName = "Unknown User"
-        } finally {
-            isLoadingUser = false
         }
     }
 
@@ -1421,7 +1417,7 @@ fun ExpandedPostDialog(
                             onClick = {
                                 if (userPhoneNumber != null) {
                                     val intent = android.content.Intent(android.content.Intent.ACTION_DIAL).apply {
-                                        data = android.net.Uri.parse("tel:$userPhoneNumber")
+                                        data = "tel:$userPhoneNumber".toUri()
                                     }
                                     context.startActivity(intent)
                                 } else {
@@ -1731,23 +1727,12 @@ fun ExpandedPostDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        // Open map with location
-                                        val uri = android.net.Uri.parse(
-                                            "geo:${post.latitude},${post.longitude}?q=${post.latitude},${post.longitude}(${post.locationName})"
+                                        MapUtils.openLocationInMaps(
+                                            context = context,
+                                            latitude = post.latitude,
+                                            longitude = post.longitude,
+                                            locationName = post.locationName
                                         )
-                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
-                                        intent.setPackage("com.google.android.apps.maps")
-
-                                        try {
-                                            context.startActivity(intent)
-                                        } catch (e: Exception) {
-                                            // Fallback to browser if Google Maps is not installed
-                                            val browserIntent = android.content.Intent(
-                                                android.content.Intent.ACTION_VIEW,
-                                                android.net.Uri.parse("https://www.google.com/maps/search/?api=1&query=${post.latitude},${post.longitude}")
-                                            )
-                                            context.startActivity(browserIntent)
-                                        }
                                     },
                                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                                 colors = CardDefaults.cardColors(
