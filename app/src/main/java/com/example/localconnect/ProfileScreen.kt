@@ -38,6 +38,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.io.File
+import androidx.core.content.ContextCompat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -109,21 +110,19 @@ fun ProfileScreen(navController: NavHostController) {
             // Configure and start UCrop
             val options = UCrop.Options().apply {
                 setCompressionQuality(90)
-                setCircleDimmedLayer(true) // Circular crop overlay
+                setCircleDimmedLayer(true)
                 setShowCropGrid(true)
                 setShowCropFrame(true)
                 setToolbarTitle("Crop Profile Picture")
 
-                // Set colors for better visibility
-                setStatusBarColor(context.getColor(android.R.color.black))
-                setToolbarColor(context.getColor(R.color.purple_700))
-                setToolbarWidgetColor(context.getColor(android.R.color.white))
-                setActiveControlsWidgetColor(context.getColor(R.color.purple_500))
-                setRootViewBackgroundColor(context.getColor(android.R.color.black))
+                setStatusBarColor(ContextCompat.getColor(context, android.R.color.black))
+                setToolbarColor(ContextCompat.getColor(context, R.color.primary))
+                setToolbarWidgetColor(ContextCompat.getColor(context, android.R.color.white))
+                setActiveControlsWidgetColor(ContextCompat.getColor(context, R.color.secondary))
+                setRootViewBackgroundColor(ContextCompat.getColor(context, android.R.color.black))
 
-                // Hide bottom controls for simpler interface
                 setHideBottomControls(false)
-                setFreeStyleCropEnabled(false) // Keep aspect ratio locked
+                setFreeStyleCropEnabled(false)
             }
 
             val uCrop = UCrop.of(sourceUri, destinationUri)

@@ -1,10 +1,14 @@
 package com.example.localconnect
 
 import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Email
@@ -14,15 +18,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,167 +33,183 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 fun LoginScreen(
     onNavigateToSignup: () -> Unit,
     onLoginSuccess: () -> Unit,
-    onEmailNotVerified: (String) -> Unit, // Add parameter for email verification navigation
-    onNavigateToStaffLogin: () -> Unit = {}, // Add staff login navigation
+    onEmailNotVerified: (String) -> Unit,
+    onNavigateToStaffLogin: () -> Unit = {},
     viewModel: AuthViewModel = viewModel()
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     val authResult by viewModel.authResult.collectAsState()
     val context = LocalContext.current
+    val scrollState = rememberScrollState()
 
-    // Handle authentication results
     LaunchedEffect(authResult) {
         when (authResult) {
-            is AuthResult.Success -> {
-                onLoginSuccess()
-            }
-            is AuthResult.EmailNotVerified -> {
-                onEmailNotVerified(email)
-            }
-            is AuthResult.Error -> {
-                Toast.makeText(context, (authResult as AuthResult.Error).message, Toast.LENGTH_SHORT).show()
-            }
-            else -> { /* Handle other states */ }
+            is AuthResult.Success -> onLoginSuccess()
+            is AuthResult.EmailNotVerified -> onEmailNotVerified(email)
+            is AuthResult.Error -> Toast.makeText(
+                context,
+                (authResult as AuthResult.Error).message,
+                Toast.LENGTH_SHORT
+            ).show()
+            else -> Unit
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF2196F3),
-                        Color(0xFFBBDEFB)
-                    )
-                )
-            ),
-        contentAlignment = Alignment.Center
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
     ) {
-        Column(
+        Box(
             modifier = Modifier
-                .fillMaxWidth(0.9f)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color.White)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 24.dp)
+                .fillMaxSize(),
+            contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = "Login",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF2196F3),
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = { Text("Email") },
-                leadingIcon = {
-                    Icon(Icons.Default.Email, contentDescription = "Email Icon")
-                },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text("Password") },
-                leadingIcon = {
-                    Icon(Icons.Default.Lock, contentDescription = "Password Icon")
-                },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // Show error message if login failed
-            if (authResult is AuthResult.Error) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = (authResult as AuthResult.Error).message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center
-                )
-            }
-
-            // Show email not verified message
-            if (authResult is AuthResult.EmailNotVerified) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-                    )
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight()
+                    .verticalScroll(scrollState),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = 24.dp, vertical = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = "Please verify your email address before logging in.",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(12.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Button(
-                onClick = {
-                    if (email.isNotBlank() && password.isNotBlank()) {
-                        viewModel.login(email, password)
-                    } else {
-                        Toast.makeText(context, "Please fill in all fields", Toast.LENGTH_SHORT).show()
+                    Box(
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.img_2),
+                            contentDescription = "Local Connect brand mark"
+                        )
                     }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = authResult !is AuthResult.Loading
-            ) {
-                if (authResult is AuthResult.Loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        strokeWidth = 2.dp
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "Welcome back",
+                        style = MaterialTheme.typography.headlineMedium,
+                        textAlign = TextAlign.Center
                     )
-                } else {
-                    Text("Login")
+                    Text(
+                        text = "Log in to continue",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text("Email") },
+                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("Password") },
+                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+
+                    if (authResult is AuthResult.Error) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = (authResult as AuthResult.Error).message,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
+                    if (authResult is AuthResult.EmailNotVerified) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        AssistChip(
+                            onClick = { onEmailNotVerified(email) },
+                            label = {
+                                Text(
+                                    "Please verify your email before logging in",
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Button(
+                        onClick = {
+                            if (email.isNotBlank() && password.isNotBlank()) {
+                                viewModel.login(email, password)
+                            } else {
+                                Toast.makeText(context, "Please fill in all fields", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = authResult !is AuthResult.Loading,
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        if (authResult is AuthResult.Loading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("Login", style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    TextButton(onClick = onNavigateToSignup) {
+                        Text("Don't have an account? Sign up")
+                    }
+
+                    Divider(modifier = Modifier.padding(vertical = 16.dp))
+
+                    OutlinedButton(
+                        onClick = onNavigateToStaffLogin,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Badge,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Staff Login", fontWeight = FontWeight.Bold)
+                    }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            TextButton(onClick = onNavigateToSignup) {
-                Text("Don't have an account? Sign up")
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Divider(modifier = Modifier.padding(vertical = 8.dp))
-
-            // Staff Login Button
-            OutlinedButton(
-                onClick = onNavigateToStaffLogin,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color(0xFF1976D2)
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Badge,
-                    contentDescription = "Staff Login",
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Staff Login", fontWeight = FontWeight.Bold)
             }
         }
     }
