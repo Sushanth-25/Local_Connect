@@ -91,7 +91,7 @@ fun LoginScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Image(
-                            painter = painterResource(id = R.drawable.img_2),
+                            painter = painterResource(id = R.drawable.localconnect_logo),
                             contentDescription = "Local Connect brand mark"
                         )
                     }
