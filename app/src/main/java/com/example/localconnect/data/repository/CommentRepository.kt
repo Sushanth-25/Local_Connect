@@ -1,17 +1,24 @@
 package com.example.localconnect.data.repository
 
+import android.content.Context
 import android.util.Log
 import com.example.localconnect.data.model.Comment
+import com.example.localconnect.data.model.Post
+import com.example.localconnect.util.NotificationManager
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
-class CommentRepository {
+class CommentRepository(private val context: Context? = null) {
     private val firestore = FirebaseFirestore.getInstance()
     private val postsCollection = firestore.collection("posts")
+    private val notificationManager = context?.let { NotificationManager(it) }
 
     companion object {
         private const val TAG = "CommentRepository"
@@ -23,6 +30,7 @@ class CommentRepository {
      * 1. Read the current post data (MUST happen first)
      * 2. Add the comment to the comments subcollection
      * 3. Increment the comment counter on the post document
+     * 4. Send notification to post owner
      *
      * IMPORTANT: All reads must happen before any writes in Firestore transactions
      */
@@ -34,7 +42,7 @@ class CommentRepository {
             val commentWithId = comment.copy(commentId = commentRef.id)
 
             // Use a transaction to ensure atomic updates
-            firestore.runTransaction { transaction ->
+            val commentId = firestore.runTransaction { transaction ->
                 // STEP 1: ALL READS FIRST (before any writes)
                 val snapshot = transaction.get(postRef)
                 val currentComments = snapshot.getLong("comments") ?: 0L
@@ -50,8 +58,41 @@ class CommentRepository {
                 commentRef.id
             }.await()
 
-            Log.d(TAG, "Comment added successfully: ${commentRef.id}")
-            Result.success(commentRef.id)
+            // Fetch post details for notification
+            val postSnapshot = postRef.get().await()
+            val post = postSnapshot.toObject(Post::class.java)
+
+            // Send notification to post owner (in background)
+            Log.d(TAG, "Checking notification: notificationManager=$notificationManager, post=$post, postUserId=${post?.userId}, commenterId=${comment.userId}")
+
+            if (notificationManager == null) {
+                Log.e(TAG, "❌ NotificationManager is NULL - context not passed to repository!")
+            } else if (post == null) {
+                Log.e(TAG, "❌ Post is NULL - couldn't fetch post details")
+            } else if (post.userId == comment.userId) {
+                Log.d(TAG, "⚠️ Skipping notification - user commented on their own post")
+            } else {
+                Log.d(TAG, "✅ Sending comment notification to user: ${post.userId}")
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        notificationManager.sendNewCommentNotification(
+                            postOwnerId = post.userId,
+                            postId = post.postId,
+                            postTitle = post.title ?: post.caption ?: "your post",
+                            commenterId = comment.userId,
+                            commenterName = comment.userName,
+                            commenterProfileUrl = comment.userProfileUrl,
+                            commentText = comment.text
+                        )
+                        Log.d(TAG, "✅ Comment notification sent successfully")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "❌ Error sending comment notification", e)
+                    }
+                }
+            }
+
+            Log.d(TAG, "Comment added successfully: $commentId")
+            Result.success(commentId)
         } catch (e: Exception) {
             Log.e(TAG, "Error adding comment: ${e.message}", e)
             Result.failure(e)

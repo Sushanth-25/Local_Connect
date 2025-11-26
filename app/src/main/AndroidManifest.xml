@@ -15,6 +15,9 @@
     <!-- Camera permission -->
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- Notification permission for Android 13+ -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:name=".LocalConnectApp"
         android:allowBackup="true"
@@ -54,5 +57,29 @@
             android:name="com.yalantis.ucrop.UCropActivity"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
+
+        <!-- Firebase Cloud Messaging Service -->
+        <service
+            android:name=".service.LocalConnectMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Default notification channel ID -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="local_connect_notifications" />
+
+        <!-- Default notification icon -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
+
+        <!-- Default notification color -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_color" />
     </application>
 </manifest>

@@ -36,9 +36,15 @@ import com.example.localconnect.presentation.viewmodel.PostDetailViewModel
 import com.example.localconnect.util.ImageLoaderConfig
 import coil.ImageLoader
 import coil.ImageLoaderFactory
+import com.example.localconnect.util.NotificationManager
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import com.example.localconnect.presentation.notifications.NotificationScreen
+import com.example.localconnect.presentation.notifications.NotificationSettingsScreen
 
 class MainActivity : ComponentActivity(), ImageLoaderFactory {
     private var isAuthFinished = false
+    private lateinit var notificationManager: NotificationManager
 
     // Implement ImageLoaderFactory to provide optimized ImageLoader
     override fun newImageLoader(): ImageLoader {
@@ -51,6 +57,21 @@ class MainActivity : ComponentActivity(), ImageLoaderFactory {
         enableEdgeToEdge()
 
         splashScreen.setKeepOnScreenCondition { !isAuthFinished }
+
+        // Initialize notification manager
+        notificationManager = NotificationManager(this)
+
+        // Initialize FCM
+        lifecycleScope.launch {
+            notificationManager.initializeFCM()
+        }
+
+        // Check for new device login
+        FirebaseAuth.getInstance().currentUser?.uid?.let { userId ->
+            lifecycleScope.launch {
+                notificationManager.checkForNewDeviceLogin(userId)
+            }
+        }
 
         setContent {
             LocalConnectTheme {
@@ -84,23 +105,13 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
             val isGoogleUser = user.providerData.any { it.providerId == "google.com" }
 
             if (isGoogleUser || user.isEmailVerified) {
-                // Verify token is still valid (not expired)
-                user.getIdToken(true)
-                    .addOnCompleteListener { task ->
-                        if (task.isSuccessful && !user.isAnonymous) {
-                            // User is authenticated and token is valid
-                            startDestination = "home"
-                        } else {
-                            // Token refresh failed or user is anonymous
-                            startDestination = "login"
-                        }
-                        onAuthFinished()
-                    }
-                    .addOnFailureListener {
-                        // Authentication validation failed
-                        startDestination = "login"
-                        onAuthFinished()
-                    }
+                // Check if user is not anonymous - no need to refresh token every time
+                if (!user.isAnonymous) {
+                    startDestination = "home"
+                } else {
+                    startDestination = "login"
+                }
+                onAuthFinished()
             } else {
                 // User exists but email not verified (only for email/password users)
                 startDestination = "email_verification/${user.email}"
@@ -273,6 +284,24 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
                     }
                     composable("my_posts") {
                         MyPostsScreen(navController = navController)
+                    }
+                    composable("notifications") {
+                        NotificationScreen(
+                            onNavigateBack = { navController.popBackStack() },
+                            onNavigateToPost = { postId ->
+                                // Load the post first, then navigate
+                                postDetailViewModel.loadPost(postId)
+                                navController.navigate("post_detail/$postId")
+                            },
+                            onNavigateToSettings = {
+                                navController.navigate("notification_settings")
+                            }
+                        )
+                    }
+                    composable("notification_settings") {
+                        NotificationSettingsScreen(
+                            onNavigateBack = { navController.popBackStack() }
+                        )
                     }
                 }
             }

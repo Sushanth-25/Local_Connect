@@ -18,12 +18,12 @@ import kotlinx.coroutines.launch
  * ViewModel for Post Detail Screen
  * Handles post display, comments, likes, and view tracking
  */
-class PostDetailViewModel : ViewModel() {
+class PostDetailViewModel(private val application: android.app.Application) : androidx.lifecycle.AndroidViewModel(application) {
     private val _selectedPost = MutableStateFlow<Post?>(null)
     val selectedPost: StateFlow<Post?> = _selectedPost.asStateFlow()
 
-    private val commentRepository = CommentRepository()
-    private val postRepository = FirebasePostRepository()
+    private val commentRepository = CommentRepository(application.applicationContext)
+    private val postRepository = FirebasePostRepository(application.applicationContext)
     private val auth = FirebaseAuth.getInstance()
 
     private val _comments = MutableStateFlow<List<Comment>>(emptyList())
@@ -60,6 +60,26 @@ class PostDetailViewModel : ViewModel() {
             if (currentUserId != null) {
                 trackPostViewOnce(postId, currentUserId)
                 loadInitialLikeState(postId, currentUserId)
+            }
+        }
+    }
+
+    fun loadPost(postId: String) {
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                val post = postRepository.getPostById(postId)
+                if (post != null) {
+                    setSelectedPost(post)
+                } else {
+                    _error.value = "Post not found"
+                    Log.e(TAG, "Post not found with ID: $postId")
+                }
+            } catch (e: Exception) {
+                _error.value = "Failed to load post: ${e.message}"
+                Log.e(TAG, "Error loading post", e)
+            } finally {
+                _isLoading.value = false
             }
         }
     }

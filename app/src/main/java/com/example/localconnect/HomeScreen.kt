@@ -292,6 +292,10 @@ fun HomeScreen(navController: NavHostController, postDetailViewModel: PostDetail
         }
     }
 
+    // Get notification view model for unread count
+    val notificationViewModel: com.example.localconnect.viewmodel.NotificationViewModel = viewModel()
+    val unreadCount by notificationViewModel.unreadCount.collectAsState()
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -302,11 +306,23 @@ fun HomeScreen(navController: NavHostController, postDetailViewModel: PostDetail
                     }
                 },
                 actions = {
-                    IconButton(onClick = { }) {
-                        Badge(containerColor = Color.Red) {
-                            Text("3", color = Color.White, fontSize = 10.sp)
+                    // Notification bell with badge
+                    BadgedBox(
+                        badge = {
+                            if (unreadCount > 0) {
+                                Badge(containerColor = Color.Red) {
+                                    Text(
+                                        text = if (unreadCount > 99) "99+" else unreadCount.toString(),
+                                        color = Color.White,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
                         }
-                        Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+                    ) {
+                        IconButton(onClick = { navController.navigate("notifications") }) {
+                            Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+                        }
                     }
                     IconButton(onClick = { }) {
                         Icon(Icons.Default.Search, contentDescription = "Search")

@@ -121,17 +121,49 @@ object PermissionUtils {
      * Checks both GPS and Network providers.
      * Returns null if no location is available or permissions are not granted.
      */
-    @Suppress("DEPRECATION")
+    @Suppress("DEPRECATION", "MissingPermission")
     fun getLastKnownLocation(context: Context): Location? {
+        // Double check permissions
         if (!hasAnyLocationPermission(context)) {
+            return null
+        }
+
+        // Verify actual runtime permission status
+        val hasFineLocation = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        val hasCoarseLocation = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!hasFineLocation && !hasCoarseLocation) {
             return null
         }
 
         return try {
             val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-            locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+
+            // Try GPS first (more accurate), then fall back to Network
+            when {
+                hasFineLocation -> {
+                    locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                        ?: if (hasCoarseLocation) {
+                            locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+                        } else null
+                }
+                hasCoarseLocation -> {
+                    locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+                }
+                else -> null
+            }
+        } catch (e: SecurityException) {
+            // Permission was revoked after check - return null
+            null
         } catch (e: Exception) {
+            // Any other error - return null
             null
         }
     }

@@ -12,4 +12,5 @@
     <color name="onSurface">#0F172A</color>
     <color name="white">#FFFFFFFF</color>
     <color name="black">#FF000000</color>
+    <color name="notification_color">#2563EB</color>
 </resources>

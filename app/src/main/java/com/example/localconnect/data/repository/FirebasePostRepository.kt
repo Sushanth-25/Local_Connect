@@ -1,5 +1,6 @@
 package com.example.localconnect.data.repository
 
+import android.content.Context
 import android.util.Log
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
@@ -8,16 +9,27 @@ import com.example.localconnect.data.model.Post
 import com.example.localconnect.data.paging.PostsPagingSource
 import com.example.localconnect.repository.PostRepository
 import com.example.localconnect.util.LocationUtils
+import com.example.localconnect.util.NotificationManager
+import com.example.localconnect.util.SimilarIssueDetector
+import com.example.localconnect.util.TrendingIssueDetector
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
-class FirebasePostRepository : PostRepository {
+class FirebasePostRepository(private val context: Context? = null) : PostRepository {
     private val firestore = FirebaseFirestore.getInstance()
     private val postsCollection = firestore.collection("posts")
+    private val notificationManager = context?.let { NotificationManager(it) }
+    private val similarIssueDetector = context?.let { SimilarIssueDetector(it) }
+    private val trendingIssueDetector = context?.let { TrendingIssueDetector(it) }
+    private val auth = FirebaseAuth.getInstance()
 
     companion object {
         private const val TAG = "FirebasePostRepository"
@@ -44,6 +56,16 @@ class FirebasePostRepository : PostRepository {
         } catch (e: Exception) {
             Log.e(TAG, "Error fetching posts: ${e.message}", e)
             emptyList()
+        }
+    }
+
+    suspend fun getPostById(postId: String): Post? {
+        return try {
+            val document = postsCollection.document(postId).get().await()
+            document.toObject(Post::class.java)?.copy(postId = document.id)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching post by ID: ${e.message}", e)
+            null
         }
     }
 
@@ -130,6 +152,24 @@ class FirebasePostRepository : PostRepository {
             postsCollection.document(sanitizedPost.postId).set(postData).await()
             Log.d(TAG, "Post saved successfully to Firestore")
 
+            // Check for similar issues nearby (in background)
+            if (similarIssueDetector != null && sanitizedPost.type?.equals("issue", true) == true) {
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        // Get all users to check their posts against this new post
+                        val allUsers = firestore.collection("users").get().await()
+                        allUsers.documents.forEach { userDoc ->
+                            val userId = userDoc.id
+                            if (userId != sanitizedPost.userId) {
+                                similarIssueDetector.checkForSimilarIssues(sanitizedPost, userId)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error checking for similar issues", e)
+                    }
+                }
+            }
+
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Error creating post: ${e.message}", e)
@@ -176,6 +216,54 @@ class FirebasePostRepository : PostRepository {
                     true // Return true (liked)
                 }
             }.await()
+
+            // Send notification if post was liked (not unliked)
+            Log.d(TAG, "Like notification check: isLiked=$isLiked, notificationManager=$notificationManager")
+
+            if (!isLiked) {
+                Log.d(TAG, "⚠️ Post was unliked, no notification sent")
+            } else if (notificationManager == null) {
+                Log.e(TAG, "❌ NotificationManager is NULL - context not passed to repository!")
+            } else {
+                Log.d(TAG, "✅ Post was liked, attempting to send notification")
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        val postSnapshot = postRef.get().await()
+                        val post = postSnapshot.toObject(Post::class.java)
+                        val currentUser = auth.currentUser
+
+                        Log.d(TAG, "Post fetched: post=$post, currentUser=$currentUser")
+
+                        if (post != null && currentUser != null) {
+                            // Send like notification to post owner
+                            if (post.userId != userId) {
+                                Log.d(TAG, "✅ Sending like notification to user: ${post.userId}")
+                                notificationManager.sendLikeNotification(
+                                    postOwnerId = post.userId,
+                                    postId = post.postId,
+                                    postTitle = post.title ?: post.caption ?: "your post",
+                                    likerId = userId,
+                                    likerName = currentUser.displayName ?: "Someone",
+                                    likerProfileUrl = currentUser.photoUrl?.toString(),
+                                    isUpvote = post.type?.equals("issue", true) == true
+                                )
+                                Log.d(TAG, "✅ Like notification sent successfully")
+                            } else {
+                                Log.d(TAG, "⚠️ Skipping notification - user liked their own post")
+                            }
+
+                            // Check if post is now trending
+                            if (trendingIssueDetector != null) {
+                                trendingIssueDetector.checkIfTrending(post.copy(likes = post.likes + 1))
+                            }
+                        } else {
+                            Log.e(TAG, "❌ Cannot send notification: post or currentUser is null")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "❌ Error sending like notification", e)
+                    }
+                }
+            }
 
             Log.d(TAG, "Post like toggled: postId=$postId, isLiked=$isLiked")
             Result.success(isLiked)

@@ -150,5 +150,79 @@ service cloud.firestore {
       allow create: if isStaff();
       allow update, delete: if false;
     }
+
+    // ================================
+    //        NOTIFICATIONS
+    // ================================
+    match /notifications/{notificationId} {
+      // Users can only read their own notifications
+      allow read: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+
+      // Any authenticated user can create notifications
+      allow create: if isSignedIn();
+
+      // Users can update their own notifications (e.g., mark as read)
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+
+      // Users can delete their own notifications
+      allow delete: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+    }
+
+    // ================================
+    //   NOTIFICATION PREFERENCES
+    // ================================
+    match /notification_preferences/{userId} {
+      // Users can read and write their own preferences
+      allow read, write: if isSignedIn()
+        && userId == request.auth.uid;
+    }
+
+    // ================================
+    //        USER DEVICES
+    // ================================
+    match /user_devices/{deviceId} {
+      // Users can read their own devices
+      allow read: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+
+      // Users can create/update their device info
+      allow create, update: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+
+      // Users can delete their own devices
+      allow delete: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+    }
+
+    // ================================
+    //  NOTIFICATION TRACKING
+    // ================================
+    // For similar issue notification cooldown tracking
+    match /similar_issue_notifications/{notificationKey} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if false;
+    }
+
+    // For trending issue notification cooldown tracking
+    match /trending_notifications/{notificationKey} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if false;
+    }
+
+    // ================================
+    //           STAFFS
+    // ================================
+    match /staffs/{staffId} {
+      // Only staff can read staff collection
+      allow read: if isStaff();
+
+      // Only staff can write (for self-registration or admin tools)
+      allow write: if isStaff();
+    }
   }
 }

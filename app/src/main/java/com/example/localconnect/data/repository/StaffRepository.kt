@@ -1,14 +1,25 @@
 package com.example.localconnect.data.repository
 
+import android.content.Context
+import android.util.Log
 import com.example.localconnect.data.model.Post
 import com.example.localconnect.data.model.Staff
+import com.example.localconnect.util.NotificationManager
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
-class StaffRepository {
+class StaffRepository(private val context: Context? = null) {
     private val firestore = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
+    private val notificationManager = context?.let { NotificationManager(it) }
+
+    companion object {
+        private const val TAG = "StaffRepository"
+    }
 
     // Check if current user is staff by verifying custom claims
     suspend fun isStaff(): Boolean {
@@ -42,15 +53,36 @@ class StaffRepository {
                 return Result.failure(Exception("Unauthorized: User is not staff"))
             }
 
+            // Get current post to retrieve old status
+            val postRef = firestore.collection("posts").document(postId)
+            val postSnapshot = postRef.get().await()
+            val post = postSnapshot.toObject(Post::class.java)
+            val oldStatus = post?.status ?: ""
+
             val updates = hashMapOf<String, Any>(
                 "status" to newStatus,
                 "updatedAt" to System.currentTimeMillis()
             )
 
-            firestore.collection("posts")
-                .document(postId)
-                .update(updates)
-                .await()
+            postRef.update(updates).await()
+
+            // Send notification for status update (in background)
+            if (notificationManager != null && post != null) {
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        notificationManager.sendStatusUpdateNotification(
+                            userId = post.userId,
+                            postId = postId,
+                            oldStatus = oldStatus,
+                            newStatus = newStatus,
+                            postTitle = post.title ?: post.caption ?: "your post"
+                        )
+                        Log.d(TAG, "Status update notification sent for post $postId: $oldStatus -> $newStatus")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error sending status update notification", e)
+                    }
+                }
+            }
 
             Result.success(Unit)
         } catch (e: Exception) {

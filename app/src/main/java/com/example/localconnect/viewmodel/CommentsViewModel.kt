@@ -1,7 +1,8 @@
 package com.example.localconnect.viewmodel
 
+import android.app.Application
 import android.util.Log
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.localconnect.data.model.Comment
 import com.example.localconnect.data.repository.CommentRepository
@@ -16,9 +17,9 @@ import kotlinx.coroutines.launch
  * ViewModel for managing comments and post statistics
  * Updated to use toggle-based likes and single-view tracking
  */
-class CommentsViewModel : ViewModel() {
-    private val commentRepository = CommentRepository()
-    private val postRepository = FirebasePostRepository()
+class CommentsViewModel(application: Application) : AndroidViewModel(application) {
+    private val commentRepository = CommentRepository(application.applicationContext)
+    private val postRepository = FirebasePostRepository(application.applicationContext)
     private val auth = FirebaseAuth.getInstance()
 
     private val _comments = MutableStateFlow<List<Comment>>(emptyList())
