@@ -59,15 +59,21 @@ class StaffRepository(private val context: Context? = null) {
             val post = postSnapshot.toObject(Post::class.java)
             val oldStatus = post?.status ?: ""
 
+            Log.d(TAG, "Updating post $postId from status '$oldStatus' to '$newStatus'")
+            Log.d(TAG, "Post userId: ${post?.userId}")
+            Log.d(TAG, "NotificationManager is ${if (notificationManager != null) "initialized" else "NULL"}")
+
             val updates = hashMapOf<String, Any>(
                 "status" to newStatus,
                 "updatedAt" to System.currentTimeMillis()
             )
 
             postRef.update(updates).await()
+            Log.d(TAG, "Post status updated successfully in Firestore")
 
             // Send notification for status update (in background)
             if (notificationManager != null && post != null) {
+                Log.d(TAG, "Attempting to send notification...")
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
                         notificationManager.sendStatusUpdateNotification(
@@ -77,15 +83,23 @@ class StaffRepository(private val context: Context? = null) {
                             newStatus = newStatus,
                             postTitle = post.title ?: post.caption ?: "your post"
                         )
-                        Log.d(TAG, "Status update notification sent for post $postId: $oldStatus -> $newStatus")
+                        Log.d(TAG, "✅ Status update notification sent for post $postId: $oldStatus -> $newStatus")
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error sending status update notification", e)
+                        Log.e(TAG, "❌ Error sending status update notification", e)
                     }
+                }
+            } else {
+                if (notificationManager == null) {
+                    Log.e(TAG, "❌ NotificationManager is NULL - cannot send notification!")
+                }
+                if (post == null) {
+                    Log.e(TAG, "❌ Post is NULL - cannot send notification!")
                 }
             }
 
             Result.success(Unit)
         } catch (e: Exception) {
+            Log.e(TAG, "❌ Error updating post status", e)
             Result.failure(e)
         }
     }

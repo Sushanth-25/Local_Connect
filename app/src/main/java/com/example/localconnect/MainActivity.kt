@@ -41,6 +41,7 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import com.example.localconnect.presentation.notifications.NotificationScreen
 import com.example.localconnect.presentation.notifications.NotificationSettingsScreen
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity(), ImageLoaderFactory {
     private var isAuthFinished = false
@@ -73,6 +74,9 @@ class MainActivity : ComponentActivity(), ImageLoaderFactory {
             }
         }
 
+        // Start listening for notifications
+        startNotificationListener()
+
         setContent {
             LocalConnectTheme {
                 MainActivityContent(
@@ -83,6 +87,37 @@ class MainActivity : ComponentActivity(), ImageLoaderFactory {
 
         // Show welcome toast every time the app is opened
         Toast.makeText(this, "Welcome to LocalConnect!", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * Listen for new notifications from Firestore and display them
+     */
+    private fun startNotificationListener() {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+
+        val notificationRepository = com.example.localconnect.data.repository.NotificationRepository()
+
+        lifecycleScope.launch {
+            notificationRepository.getUserNotifications(userId).collect { notifications ->
+                // Get the most recent unread notification
+                val latestNotification = notifications.firstOrNull { !it.isRead }
+
+                if (latestNotification != null) {
+                    // Show in-app notification
+                    notificationManager.sendLocalPushNotification(
+                        title = latestNotification.title,
+                        message = latestNotification.message,
+                        postId = latestNotification.postId,
+                        notificationId = latestNotification.notificationId
+                    )
+
+                    // Mark as read to avoid showing again
+                    lifecycleScope.launch {
+                        notificationRepository.markAsRead(latestNotification.notificationId)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -99,6 +134,9 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
         val auth = FirebaseAuth.getInstance()
         val user = auth.currentUser
 
+        // Add minimum splash screen delay (2 seconds)
+        val startTime = System.currentTimeMillis()
+
         // Check if user is valid (authenticated and not anonymous)
         if (user != null) {
             // Check if user signed in with Google (they don't need email verification)
@@ -111,17 +149,23 @@ fun MainActivityContent(onAuthFinished: () -> Unit) {
                 } else {
                     startDestination = "login"
                 }
-                onAuthFinished()
             } else {
                 // User exists but email not verified (only for email/password users)
                 startDestination = "email_verification/${user.email}"
-                onAuthFinished()
             }
         } else {
             // No user found
             startDestination = "login"
-            onAuthFinished()
         }
+
+        // Ensure splash screen shows for at least 2 seconds
+        val elapsedTime = System.currentTimeMillis() - startTime
+        val remainingDelay = 2000 - elapsedTime
+        if (remainingDelay > 0) {
+            delay(remainingDelay)
+        }
+
+        onAuthFinished()
     }
 
     // Location permission launcher

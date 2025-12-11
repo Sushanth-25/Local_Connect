@@ -1,6 +1,7 @@
 package com.example.localconnect.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.localconnect.AuthResult
 import com.example.localconnect.data.model.Post
@@ -25,9 +26,9 @@ sealed class PostUpdateState {
     data class Error(val message: String) : PostUpdateState()
 }
 
-class StaffViewModel : ViewModel() {
+class StaffViewModel(application: Application) : AndroidViewModel(application) {
     private val auth = FirebaseAuth.getInstance()
-    private val staffRepository = StaffRepository()
+    private val staffRepository = StaffRepository(application.applicationContext)
 
     private val _authState = MutableStateFlow<StaffAuthState>(StaffAuthState.Idle)
     val authState: StateFlow<StaffAuthState> = _authState
@@ -165,4 +166,3 @@ class StaffViewModel : ViewModel() {
         _authState.value = StaffAuthState.Idle
     }
 }
-

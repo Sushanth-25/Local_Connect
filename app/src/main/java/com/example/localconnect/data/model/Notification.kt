@@ -45,6 +45,7 @@ data class Notification(
 
 enum class NotificationType(val value: String) {
     // Status updates
+    STATUS_CHANGE("status_change"),
     STATUS_SUBMITTED_TO_IN_PROGRESS("status_submitted_to_in_progress"),
     STATUS_IN_PROGRESS_TO_RESOLVED("status_in_progress_to_resolved"),
     STATUS_RESOLVED_TO_CLOSED("status_resolved_to_closed"),
@@ -111,4 +112,3 @@ data class NotificationPreferences(
 ) {
     constructor() : this("", true, true, true, true, true, true, true, false)
 }
-

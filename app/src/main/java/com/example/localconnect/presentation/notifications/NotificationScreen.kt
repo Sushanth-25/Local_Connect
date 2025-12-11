@@ -376,6 +376,7 @@ private fun ErrorView(
 @Composable
 private fun getNotificationIcon(type: NotificationType): ImageVector {
     return when (type) {
+        NotificationType.STATUS_CHANGE,
         NotificationType.STATUS_SUBMITTED_TO_IN_PROGRESS,
         NotificationType.STATUS_IN_PROGRESS_TO_RESOLVED,
         NotificationType.STATUS_RESOLVED_TO_CLOSED -> Icons.Default.Update
@@ -405,6 +406,7 @@ private fun getNotificationIcon(type: NotificationType): ImageVector {
 @Composable
 private fun getNotificationColor(type: NotificationType): androidx.compose.ui.graphics.Color {
     return when (type) {
+        NotificationType.STATUS_CHANGE,
         NotificationType.STATUS_SUBMITTED_TO_IN_PROGRESS,
         NotificationType.STATUS_IN_PROGRESS_TO_RESOLVED,
         NotificationType.STATUS_RESOLVED_TO_CLOSED -> MaterialTheme.colorScheme.primary
@@ -445,4 +447,3 @@ private fun formatTimestamp(timestamp: Long): String {
         }
     }
 }
-

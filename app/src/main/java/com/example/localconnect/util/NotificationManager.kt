@@ -12,6 +12,14 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.tasks.await
+import android.app.NotificationChannel
+import android.app.NotificationManager as AndroidNotificationManager
+import android.app.PendingIntent
+import android.content.Intent
+import android.media.RingtoneManager
+import androidx.core.app.NotificationCompat
+import com.example.localconnect.MainActivity
+import com.example.localconnect.R
 
 class NotificationManager(private val context: Context) {
 
@@ -23,6 +31,8 @@ class NotificationManager(private val context: Context) {
         private const val TAG = "NotificationManager"
         private const val PREFS_NAME = "notification_prefs"
         private const val KEY_DEVICE_ID = "device_id"
+        private const val CHANNEL_ID = "local_connect_notifications"
+        private const val CHANNEL_NAME = "Local Connect Notifications"
     }
 
     /**
@@ -131,6 +141,18 @@ class NotificationManager(private val context: Context) {
         postTitle: String
     ) {
         try {
+            Log.d(TAG, "sendStatusUpdateNotification called")
+            Log.d(TAG, "userId: $userId, postId: $postId")
+            Log.d(TAG, "oldStatus: '$oldStatus', newStatus: '$newStatus'")
+            Log.d(TAG, "postTitle: $postTitle")
+
+            // Skip if status hasn't actually changed
+            if (oldStatus.equals(newStatus, ignoreCase = true)) {
+                Log.d(TAG, "Status unchanged, skipping notification")
+                return
+            }
+
+            // Determine notification type based on status transition
             val notificationType = when {
                 oldStatus.equals("submitted", true) && newStatus.equals("in_progress", true) ->
                     NotificationType.STATUS_SUBMITTED_TO_IN_PROGRESS
@@ -138,8 +160,11 @@ class NotificationManager(private val context: Context) {
                     NotificationType.STATUS_IN_PROGRESS_TO_RESOLVED
                 oldStatus.equals("resolved", true) && newStatus.equals("closed", true) ->
                     NotificationType.STATUS_RESOLVED_TO_CLOSED
-                else -> return
+                // Default to generic status change for any other transition
+                else -> NotificationType.STATUS_CHANGE
             }
+
+            Log.d(TAG, "Notification type: $notificationType")
 
             val notification = Notification(
                 userId = userId,
@@ -150,12 +175,17 @@ class NotificationManager(private val context: Context) {
                 timestamp = System.currentTimeMillis()
             )
 
+            Log.d(TAG, "Creating notification in Firestore...")
             notificationRepository.createNotification(notification).fold(
-                onSuccess = { Log.d(TAG, "Status notification created: $it") },
-                onFailure = { Log.e(TAG, "Failed to create status notification", it) }
+                onSuccess = {
+                    Log.d(TAG, "✅ Status notification created successfully: $it")
+                },
+                onFailure = {
+                    Log.e(TAG, "❌ Failed to create status notification", it)
+                }
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Error in sendStatusUpdateNotification", e)
+            Log.e(TAG, "❌ Error in sendStatusUpdateNotification", e)
         }
     }
 
@@ -323,5 +353,67 @@ class NotificationManager(private val context: Context) {
 
         notificationRepository.createNotification(notification)
     }
-}
 
+    /**
+     * Send local push notification (works without Cloud Functions)
+     */
+    fun sendLocalPushNotification(
+        title: String,
+        message: String,
+        postId: String? = null,
+        notificationId: String? = null
+    ) {
+        try {
+            val intent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                postId?.let { putExtra("postId", it) }
+                notificationId?.let { putExtra("notificationId", it) }
+            }
+
+            val pendingIntent = PendingIntent.getActivity(
+                context,
+                System.currentTimeMillis().toInt(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val notificationSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+
+            val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle(title)
+                .setContentText(message)
+                .setAutoCancel(true)
+                .setSound(notificationSound)
+                .setContentIntent(pendingIntent)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+                .setVibrate(longArrayOf(0, 500, 200, 500))
+
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as AndroidNotificationManager
+
+            // Create notification channel for Android O and above
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    CHANNEL_ID,
+                    CHANNEL_NAME,
+                    AndroidNotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Notifications for issue status updates and community activities"
+                    enableLights(true)
+                    enableVibration(true)
+                }
+                notificationManager.createNotificationChannel(channel)
+            }
+
+            notificationManager.notify(
+                System.currentTimeMillis().toInt(),
+                notificationBuilder.build()
+            )
+
+            Log.d(TAG, "Local push notification sent: $title")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error sending local push notification", e)
+        }
+    }
+}
