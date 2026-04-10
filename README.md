@@ -1,35 +1,130 @@
-# Local Connect
+# Local Connect (Android)
+
+Local Connect is a Jetpack Compose Android app for community posting and local issue reporting, with Firebase-backed auth, feed, media uploads, notifications, and staff moderation.
+
+## Tech Stack
+
+- Kotlin + Jetpack Compose
+- Android SDK 36 (min SDK 28)
+- Firebase: Auth, Firestore, Storage, Analytics, Messaging
+- Paging 3 for feed pagination
+- OSMDroid for map/location UI
+- Gradle Kotlin DSL with Version Catalog
+
+## Key Features
+
+- User authentication and profile management
+- Post creation with media upload support
+- Home feed, post details, and user posts
+- Comments and aggregate counters (likes/comments/views)
+- Notifications and notification settings
+- Location-aware/community-style flows
+- Staff login and staff dashboard for moderation workflows
+
+## Project Structure
+
+```text
+Local_Connect/
+	app/                          # Android app module
+		src/main/java/com/example/localconnect/
+			data/                     # Models, repositories, paging
+			presentation/             # Compose screens and view models
+			service/                  # Firebase messaging service
+			util/                     # App utilities (location, permissions, etc.)
+	scripts/                      # Firebase Admin utility scripts
+	firestore.rules               # Firestore security rules
+	firestore.indexes.json        # Firestore index definitions
+	gradle/                       # Gradle wrapper and version catalog
+```
+
+## Prerequisites
+
+- Android Studio (latest stable recommended)
+- JDK 11
+- Firebase project configured for this app
+- Android SDK for compile SDK 36
+
+## Setup
+
+1. Clone the repository.
+2. Add Firebase config file at `app/google-services.json`.
+3. Ensure `local.properties` points to your Android SDK.
+4. Sync Gradle and build.
+
+## Build and Run
+
+Use the Gradle wrapper only.
+
+- Windows:
+
+```powershell
+.\gradlew.bat clean build
+.\gradlew.bat installDebug
+```
+
+- macOS/Linux:
+
+```bash
+./gradlew clean build
+./gradlew installDebug
+```
 
 ## Gradle Version Enforcement
 
-This project uses Gradle 8.13. To ensure all team members use the same build environment, we have configured the project to:
+This repository enforces Gradle `8.13` in `settings.gradle.kts`. If you use a local `gradle` binary with a different version, the build fails intentionally. Always use `gradlew` / `gradlew.bat`.
 
-1. Lock the Gradle wrapper to version 8.13
-2. Enforce version checking in the build scripts
+## Firebase Configuration
 
-## Important Guidelines for All Team Members
+- Firestore rules: `firestore.rules`
+- Firestore indexes: `firestore.indexes.json`
 
-### ✅ Always use the Gradle wrapper
-To ensure consistent builds across all development environments, **always** use the Gradle wrapper instead of your locally installed Gradle:
+Useful guides in this repository:
 
-- On Windows: `.\gradlew.bat <task>`
-- On Mac/Linux: `./gradlew <task>`
+- `FIRESTORE_CONFIGURATION_GUIDE.md`
+- `FIRESTORE_RULES_WITH_STAFF.md`
+- `STAFF_LOGIN_SETUP_GUIDE.md`
 
-### ❌ Never use the `gradle` command directly
-Using your local Gradle installation may cause build inconsistencies between team members.
+## Staff/Admin Scripts
 
-## Common Gradle Tasks
+The `scripts/` folder contains Firebase Admin helper scripts for staff claim management and seed/testing workflows.
 
-- Build the project: `./gradlew build`
-- Run tests: `./gradlew test`
-- Install debug APK: `./gradlew installDebug`
-- Clean the project: `./gradlew clean`
+Typical setup:
+
+1. Place service account key at `scripts/serviceAccountKey.json` (do not commit).
+2. Install dependencies in the project root:
+
+```bash
+npm install firebase-admin
+```
+
+## Release Build
+
+For signed release APK/AAB setup, see `QUICK_RELEASE_STEPS.md`.
+
+Quick commands:
+
+```powershell
+.\gradlew.bat assembleRelease
+.\gradlew.bat bundleRelease
+```
+
+## Security and Secrets
+
+Do not commit:
+
+- `app/google-services.json`
+- `scripts/serviceAccountKey.json`
+- keystore files and `keystore.properties`
+- local IDE/cache/build artifacts
+
+The `.gitignore` already covers these.
 
 ## Troubleshooting
 
-If you see an error like this:
-```
-Expected Gradle version 8.13 but found X.X. Please use the Gradle wrapper (gradlew) instead of your local Gradle installation.
+If you hit:
+
+```text
+Expected Gradle version 8.13 but found X.X
 ```
 
-Make sure you're using the wrapper (`gradlew` or `gradlew.bat`) and not your local Gradle installation.
+run builds using `gradlew`/`gradlew.bat` and avoid the system `gradle` command.
